@@ -1,0 +1,18 @@
+_target_: gatr.experiments.nbody.wrappers.NBodyGCANWrapper
+
+geometric_batching: true
+
+net:
+  _target_: gatr.baselines.gcan.GCAGNN
+
+  in_channels: ${data.mv_channels_in}
+  out_channels: ${data.mv_channels_out}
+  node_channels: 64
+  message_channels: 64
+
+  mlp_hidden_channels: 128
+  mlp_hidden_layers: 1
+
+  message_passing_steps: 4
+  # From GCAN paper:
+  # "The GCA-GNN equals the parameters of the small [baseline GNN], using four hidden layers of 64 hidden features."

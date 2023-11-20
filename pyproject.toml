@@ -1,0 +1,41 @@
+[tool.black]
+line-length = 100
+extend-exclude = "notebooks"
+
+[tool.isort]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+profile = "black"
+line_length = 100
+extend_skip_glob = ["notebooks/*"]
+
+[tool.mypy]
+warn_unused_configs = true
+show_error_codes = true
+check_untyped_defs = true
+no_implicit_optional = true
+disallow_untyped_defs = false
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "cliffordlayers.*",
+    "clifford.*",
+    "coronary_mesh_convolution.*",
+    "dgl.*",
+    "e3nn.*",
+    "matplotlib.*",
+    "mlflow.*",
+    "mock.*",
+    "opt_einsum.*",
+    "pandas",
+    "rope.*",
+    "scipy.*",
+    "seaborn",
+    "setuptools.*",
+    "torch.*",
+    "torch_ema.*",
+    "torch_geometric.*",
+    "torch_scatter.*",
+    "xformers.*",
+]
+ignore_missing_imports = true

@@ -1,0 +1,13 @@
+_target_: gatr.experiments.nbody.wrappers.NBodyBaselineWrapper
+
+net:
+  _target_: gatr.baselines.BaselineTransformer
+
+  in_channels: '${data.baseline_channels_in}'
+  out_channels: '${data.baseline_channels_out}'
+  hidden_channels: 384
+
+  num_blocks: 10
+  num_heads: 8
+
+  pos_encoding: false

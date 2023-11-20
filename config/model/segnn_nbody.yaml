@@ -1,0 +1,23 @@
+_target_: gatr.experiments.nbody.wrappers.NBodySEGNNWrapper
+
+neighbors: 3
+canonicalize_mode: even
+lmax_attr: '${model.net.lmax_attr}'
+
+net:
+  _target_: gatr.baselines.segnn.SEGNNModel
+
+  input_vec_channels: '${data.geobaseline_vec_channels_in}'
+  output_vec_channels: '${data.geobaseline_vec_channels_out}'
+  input_s_channels: '${data.geobaseline_s_channels_in}'
+  output_s_channels: '${data.geobaseline_s_channels_out}'
+  additional_message_s_channels: 2
+
+  hidden_features: 64
+  lmax_h: 1
+  lmax_attr: 1
+  subspace_type: weightbalanced
+  layers: 4
+  norm: none
+  pool: avg
+  task: node

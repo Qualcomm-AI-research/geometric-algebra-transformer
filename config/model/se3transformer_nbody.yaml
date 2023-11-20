@@ -1,0 +1,17 @@
+_target_: gatr.experiments.nbody.wrappers.NBodySE3TransformerWrapper
+
+canonicalize_to_com: true
+canonicalize_mode: com
+
+net:
+  _target_: se3_transformer.experiments.nbody.nbody_models.SE3Transformer
+
+  # Settings taken from n-body example in official repo
+  num_layers: 4
+  num_channels: 8
+  num_degrees: 4
+  div: 4
+  n_heads: 1
+  si_m: "1x1"
+  si_e: "att"
+  x_ij: "add"

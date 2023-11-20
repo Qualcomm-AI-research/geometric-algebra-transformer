@@ -1,0 +1,9 @@
+# pytest
+.coverage
+.pytest
+.pytest_cache
+
+# Python
+*__pycache__*
+*.egg-info
+*.py[cod]

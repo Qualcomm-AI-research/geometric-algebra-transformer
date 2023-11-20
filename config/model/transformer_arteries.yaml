@@ -1,0 +1,15 @@
+_target_: gatr.experiments.arteries.wrappers.ArteryBaselineWrapper
+
+net:
+  _target_: gatr.baselines.BaselineTransformer
+
+  in_channels: '${data.baseline_channels_in}'
+  out_channels: '${data.baseline_channels_out}'
+  hidden_channels: 160
+
+  num_blocks: 10
+  num_heads: 4
+  multi_query: true
+
+  pos_encoding: false
+  checkpoint_blocks: true

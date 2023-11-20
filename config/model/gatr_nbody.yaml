@@ -1,0 +1,22 @@
+_target_: gatr.experiments.nbody.wrappers.NBodyGATrWrapper
+
+net:
+  _target_: gatr.nets.GATr
+
+  in_mv_channels: '${data.mv_channels_in}'
+  out_mv_channels: '${data.mv_channels_out}'
+  hidden_mv_channels: 16
+
+  in_s_channels: '${data.scalar_channels_in}'
+  out_s_channels: '${data.scalar_channels_out}'
+  hidden_s_channels: 128
+
+  num_blocks: 10
+  checkpoint_blocks: false
+  reinsert_mv_channels: null
+  reinsert_s_channels: null
+  dropout_prob: null
+
+defaults:
+  - /base_attention@net.attention
+  - /base_mlp@net.mlp

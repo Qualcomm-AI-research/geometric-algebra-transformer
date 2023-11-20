@@ -1,0 +1,66 @@
+exp_name: arteries
+run_name: default
+
+base_dir : ???
+exp_dir: '${base_dir}/experiments/${exp_name}/${run_name}'
+
+seed: ???
+debug: false
+
+checkpoint: null
+
+data:
+  data_dir: '${base_dir}/data/arteries'
+  subsample: null
+
+  mv_channels_in: 3
+  mv_channels_out: 1
+  scalar_channels_in: 1
+  scalar_channels_out: 1
+  baseline_channels_in: 7
+  baseline_channels_out: 3
+
+  rotate_train: true
+  rotate_test: true
+
+training:
+  output_regularization: 0
+
+  steps: 200000
+  batchsize: 8
+  eval_batchsize: 1
+
+  lr: 3e-4
+  lr_decay: 0.01
+  clip_grad_norm: 10.0
+  weight_decay: 0.0
+
+  early_stopping: true
+
+  float16: false
+  ema: false
+
+  log_every_n_steps: 100
+  validate_every_n_steps: 1000
+  plot_every_n_steps: 10000
+  save_model_every_n_steps: 1000
+  update_lr_every_n_steps: 1000
+
+  eval_device: cuda
+  progressbar: true
+  detect_anomaly: false
+  
+  # Following config is unused for batch size>1, as we use xformers here
+  force_xformers: false
+  enable_flash_sdp: false
+  enable_math_sdp: true
+  enable_mem_efficient_sdp: false
+
+mlflow:
+  db: '${base_dir}/tracking/mlflow.db'
+  artifacts: '${base_dir}/tracking/artifacts'
+
+defaults:
+  - model: gatr_arteries
+  - hydra
+  - _self_  # Ensures that entries in this file overwrite everything references above, even in hydra <= 1.0

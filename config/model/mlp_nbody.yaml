@@ -1,0 +1,14 @@
+_target_: gatr.experiments.nbody.wrappers.NBodyBaselineWrapper
+
+net:
+  _target_: gatr.baselines.mlp.MLP
+
+  in_shape:
+    - 4
+    - ${data.baseline_channels_in}
+  out_shape:
+    - 4
+    - ${data.baseline_channels_out}
+
+  hidden_channels: 384
+  hidden_layers: 2

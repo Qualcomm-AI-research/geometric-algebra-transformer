@@ -1,0 +1,17 @@
+_target_: gatr.experiments.nbody.wrappers.NBodyGCANWrapper
+
+geometric_batching: true
+
+net:
+  _target_: gatr.baselines.gcan.GCAMLP
+
+  in_shape:
+    - 4
+    - ${data.mv_channels_in}
+  out_shape:
+    - 4
+    - ${data.mv_channels_out}
+
+  # Settings from GCAN paper, Tetris experiment:
+  hidden_channels: 128
+  hidden_layers: 2

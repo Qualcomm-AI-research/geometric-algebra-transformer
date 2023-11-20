@@ -1,0 +1,14 @@
+# The settings below keep hydra from creating new directories, changing the working directory, or hijacking the configuration of the logger
+# See https://stackoverflow.com/questions/65104134/disable-file-output-of-hydra and https://github.com/facebookresearch/hydra/pull/1130
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  hydra_logging:
+    version: 1
+    root: null
+    disable_existing_loggers: false
+  job_logging:
+    version: 1
+    root: null
+    disable_existing_loggers: false

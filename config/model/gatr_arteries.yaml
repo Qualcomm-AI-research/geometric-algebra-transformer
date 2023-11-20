@@ -1,0 +1,26 @@
+_target_: gatr.experiments.arteries.wrappers.ArteryGATrWrapper
+
+net:
+  _target_: gatr.nets.GATr
+
+  in_mv_channels: '${data.mv_channels_in}'
+  out_mv_channels: '${data.mv_channels_out}'
+  hidden_mv_channels: 8
+
+  in_s_channels: '${data.scalar_channels_in}'
+  out_s_channels: '${data.scalar_channels_out}'
+  hidden_s_channels: 32
+
+  num_blocks: 10
+  reinsert_mv_channels: [0]
+  reinsert_s_channels: null
+  dropout_prob: null
+
+  checkpoint_blocks: true
+
+  attention:
+    num_heads: 4
+
+defaults:
+  - /base_attention@net.attention
+  - /base_mlp@net.mlp

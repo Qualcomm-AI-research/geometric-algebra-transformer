@@ -1,0 +1,66 @@
+exp_name: nbody
+run_name: ???
+
+base_dir : ???
+exp_dir: '${base_dir}/experiments/${exp_name}/${run_name}'
+
+seed: ???
+debug: false
+
+checkpoint: null
+
+data:
+  data_dir: '${base_dir}/data/nbody'
+  subsample: null
+
+  mv_channels_in: 1
+  mv_channels_out: 1
+  scalar_channels_in: 1
+  scalar_channels_out: 1
+  baseline_channels_in: 7
+  baseline_channels_out: 3
+  geobaseline_vec_channels_in: 2
+  geobaseline_vec_channels_out: 1
+  geobaseline_s_channels_in: 1
+  geobaseline_s_channels_out: 0
+
+training:
+  output_regularization: 0.01
+
+  steps: 50000
+  batchsize: 64
+  eval_batchsize: 64
+
+  lr: 3e-4
+  lr_decay: 0.01
+  clip_grad_norm: 10.0
+  weight_decay: 0.0
+
+  early_stopping: true
+
+  float16: false
+  ema: false
+
+  log_every_n_steps: 100
+  validate_every_n_steps: 1000
+  plot_every_n_steps: 1000
+  save_model_every_n_steps: 0
+  update_lr_every_n_steps: 1000
+
+  eval_device: cuda
+  progressbar: true
+  detect_anomaly: false
+
+  force_xformers: false
+  enable_flash_sdp: false
+  enable_math_sdp: true
+  enable_mem_efficient_sdp: false
+
+mlflow:
+  db: '${base_dir}/tracking/mlflow.db'
+  artifacts: '${base_dir}/tracking/artifacts'
+
+defaults:
+  - model: gatr_nbody
+  - hydra
+  - _self_  # Ensures that entries in this file overwrite everything references above, even in hydra <= 1.0

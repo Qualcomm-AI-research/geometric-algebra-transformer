@@ -1,0 +1,87 @@
+diff --git a/transforms/flow_extensions.py b/transforms/flow_extensions.py
+index d0bfaeb..b8e5203 100644
+--- a/transforms/flow_extensions.py
++++ b/transforms/flow_extensions.py
+@@ -1,4 +1,4 @@
+-from utils.artery_tools import IndexFinder, remove_vertices
++from utils.artery_tools import remove_vertices
+ import torch
+ import trimesh
+ import numpy as np
+@@ -14,25 +14,18 @@ class RemoveFlowExtensions(object):
+     def __init__(self, factor=(5., 0)):
+         self.factor = factor
+ 
+-        self.inlet = IndexFinder(pytorch=True)
+-
+     def inlet_area(self, data):
+-        if hasattr(data, 'inlet_index'):
+-
+-            # Inlet vertex mask
+-            vertex_mask = torch.full((data.num_nodes,), False)
+-            vertex_mask[data['inlet_index'].long()] = True
+-
+-            # Determine the inlet mesh
+-            inlet = remove_vertices(data.clone(), vertex_mask)
++        assert hasattr(data, 'inlet_index')
+ 
+-            # Use trimesh object for area computation
+-            area = trimesh.Trimesh(vertices=inlet.pos.numpy(), faces=inlet.face.t().numpy()).area
++        # Inlet vertex mask
++        vertex_mask = torch.full((data.num_nodes,), False)
++        vertex_mask[data['inlet_index'].long()] = True
+ 
+-        else:
++        # Determine the inlet mesh
++        inlet = remove_vertices(data.clone(), vertex_mask)
+ 
+-            # Read inlet mesh from boundary-condition file
+-            area = self.inlet.area(data.dir)
++        # Use trimesh object for area computation
++        area = trimesh.Trimesh(vertices=inlet.pos.numpy(), faces=inlet.face.t().numpy()).area
+ 
+         return area
+ 
+diff --git a/transforms/geodesics.py b/transforms/geodesics.py
+index fd35f12..b0e2a0e 100644
+--- a/transforms/geodesics.py
++++ b/transforms/geodesics.py
+@@ -1,4 +1,3 @@
+-from utils.artery_tools import IndexFinder
+ import potpourri3d as pp3d
+ import torch
+ 
+@@ -10,18 +9,14 @@ class InletGeodesics(object):
+         -
+     """
+ 
+-    def __init__(self):
+-        self.inlet_indices = IndexFinder()
+-
+     def __call__(self, data):
+         solver = pp3d.MeshHeatMethodDistanceSolver(data.pos.numpy(), data.face.t().numpy())
+ 
+         # Compute the minimum geodesic distances to the inlet
+-        if hasattr(data, 'inlet_index'):
+-            inlet = data['inlet_index'].numpy()
++        assert hasattr(data, "inlet_index")
++
++        inlet = data['inlet_index'].numpy()
+ 
+-        else:
+-            inlet, _ = self.inlet_indices(data.dir)
+ 
+         geodesics = solver.compute_distance_multisource(inlet)
+ 
+diff --git a/utils/artery_tools.py b/utils/artery_tools.py
+index e590eb6..64db3c7 100644
+--- a/utils/artery_tools.py
++++ b/utils/artery_tools.py
+@@ -1,6 +1,4 @@
+-import vtk
+-from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+-import utils.vtk_tools
++import utils
+ import numpy as np
+ import torch
+ import trimesh
