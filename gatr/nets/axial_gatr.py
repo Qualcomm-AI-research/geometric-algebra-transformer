@@ -13,7 +13,7 @@ from gatr.layers.gatr_block import GATrBlock
 from gatr.layers.linear import EquiLinear
 from gatr.layers.mlp.config import MLPConfig
 
-# Default rearrange patterns
+# Default rearrange patterns for odd blocks
 _MV_REARRANGE_PATTERN = "... i j c x -> ... j i c x"
 _S_REARRANGE_PATTERN = "... i j c -> ... j i c"
 
@@ -58,9 +58,10 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
         and queries. The first element in the tuple determines whether positional embeddings
         are applied to the first item dimension, the second element the same for the second item
         dimension.
-    collapse_dims_for_odd_blocks : bool
-        Whether the batch dimensions will be collapsed in odd blocks (to support xformers block
-        attention)
+    collapse_dims : tuple of bool
+        Whether batch and token dimensions will be collapsed to support xformers block attention.
+        The first element of this tuple describes the behaviour in the 0th, 2nd, ... block, the
+        second element in the 1st, 3rd, ... block (where the axes are reversed).
     """
 
     def __init__(
@@ -76,7 +77,7 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
         num_blocks: int = 20,
         checkpoint_blocks: bool = False,
         pos_encodings: Tuple[bool, bool] = (False, False),
-        collapse_dims_for_odd_blocks=False,
+        collapse_dims: Tuple[bool, bool] = (False, False),
         **kwargs,
     ) -> None:
         super().__init__()
@@ -109,7 +110,7 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
             out_s_channels=out_s_channels,
         )
         self._checkpoint_blocks = checkpoint_blocks
-        self._collapse_dims_for_odd_blocks = collapse_dims_for_odd_blocks
+        self._collapse_dims_for_even_blocks, self._collapse_dims_for_odd_blocks = collapse_dims
 
     def forward(
         self,
@@ -149,7 +150,7 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
             if i % 2 == 1:
                 h_mv, h_s, input_batch_dims = self._reshape_data_before_odd_blocks(h_mv, h_s)
             else:
-                input_batch_dims = None
+                h_mv, h_s, input_batch_dims = self._reshape_data_before_even_blocks(h_mv, h_s)
 
             # Attention masks will also be different
             if attention_mask is None:
@@ -177,6 +178,8 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
             # Transposing back to standard axis order
             if i % 2 == 1:
                 h_mv, h_s = self._reshape_data_after_odd_blocks(h_mv, h_s, input_batch_dims)
+            else:
+                h_mv, h_s = self._reshape_data_after_even_blocks(h_mv, h_s, input_batch_dims)
 
         outputs_mv, outputs_s = self.linear_out(h_mv, scalars=h_s)
 
@@ -193,13 +196,15 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
         return torch.mean(inputs, dim=mean_dim, keepdim=True)  # (batch, 1, ..., 1, 16)
 
     def _reshape_data_before_odd_blocks(self, multivector, scalar):
-        # Prepare reshuffling between axial layers
-        input_batch_dims = multivector.shape[:2]
-        assert scalar.shape[:2] == input_batch_dims
-
+        # Transpose token axes
         multivector = rearrange(multivector, _MV_REARRANGE_PATTERN)  # (axis2, axis1, ...)
         scalar = rearrange(scalar, _S_REARRANGE_PATTERN)  # (axis2, axis1, ...)
 
+        # Prepare uncollapsing
+        input_batch_dims = multivector.shape[:2]
+        assert scalar.shape[:2] == input_batch_dims
+
+        # Collapse dimensions
         if self._collapse_dims_for_odd_blocks:
             multivector = multivector.reshape(-1, *multivector.shape[2:])  # (axis2 * axis1, ...)
             scalar = scalar.reshape(-1, *scalar.shape[2:])  # (axis2 * axis1, ...)
@@ -207,15 +212,37 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
         return multivector, scalar, input_batch_dims
 
     def _reshape_data_after_odd_blocks(self, multivector, scalar, input_batch_dims):
-        # Transposing back to standard axis order
-
+        # Uncollapse
         if self._collapse_dims_for_odd_blocks:
             multivector = multivector.reshape(
                 *input_batch_dims, *multivector.shape[1:]
             )  # (axis2, axis1, ...)
             scalar = scalar.reshape(*input_batch_dims, *scalar.shape[1:])  # (axis2, axis1, ...)
 
+        # Re-transpose token axes
         multivector = rearrange(multivector, _MV_REARRANGE_PATTERN)  # (axis1, axis2, ...)
         scalar = rearrange(scalar, _S_REARRANGE_PATTERN)  # (axis1, axis2, ...)
+
+        return multivector, scalar
+
+    def _reshape_data_before_even_blocks(self, multivector, scalar):
+        # Prepare un-collapsing
+        input_batch_dims = multivector.shape[:2]
+        assert scalar.shape[:2] == input_batch_dims
+
+        # Collapse
+        if self._collapse_dims_for_even_blocks:
+            multivector = multivector.reshape(-1, *multivector.shape[2:])  # (axis2 * axis1, ...)
+            scalar = scalar.reshape(-1, *scalar.shape[2:])  # (axis2 * axis1, ...)
+
+        return multivector, scalar, input_batch_dims
+
+    def _reshape_data_after_even_blocks(self, multivector, scalar, input_batch_dims):
+        # Uncollapse
+        if self._collapse_dims_for_even_blocks:
+            multivector = multivector.reshape(
+                *input_batch_dims, *multivector.shape[1:]
+            )  # (axis2, axis1, ...)
+            scalar = scalar.reshape(*input_batch_dims, *scalar.shape[1:])  # (axis2, axis1, ...)
 
         return multivector, scalar

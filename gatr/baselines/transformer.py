@@ -14,6 +14,9 @@ from gatr.layers import ApplyRotaryPositionalEncoding
 from gatr.primitives.attention import scaled_dot_product_attention
 from gatr.utils.tensors import to_nd
 
+# Default rearrange patterns for odd blocks
+_REARRANGE_PATTERN = "... i j c -> ... j i c"
+
 
 class BaselineLayerNorm(nn.Module):
     """Baseline layer norm over all dimensions except the first."""
@@ -436,6 +439,10 @@ class BaselineAxialTransformer(nn.Module):
         and queries.
     pos_encoding_base : int
         Maximum frequency used in positional encodings. (The minimum frequency is always 1.)
+    collapse_dims : tuple of bool
+        Whether batch and token dimensions will be collapsed to support xformers block attention.
+        The first element of this tuple describes the behaviour in the 0th, 2nd, ... block, the
+        second element in the 1st, 3rd, ... block (where the axes are reversed).
     """
 
     def __init__(
@@ -447,6 +454,7 @@ class BaselineAxialTransformer(nn.Module):
         num_heads: int = 8,
         pos_encodings: Tuple[bool, bool] = (False, False),
         pos_encoding_base: int = 4096,
+        collapse_dims: Tuple[bool, bool] = (False, False),
     ) -> None:
         super().__init__()
         self.linear_in = nn.Linear(in_channels, hidden_channels)
@@ -462,14 +470,17 @@ class BaselineAxialTransformer(nn.Module):
             ]
         )
         self.linear_out = nn.Linear(hidden_channels, out_channels)
+        self._collapse_dims_for_even_blocks, self._collapse_dims_for_odd_blocks = collapse_dims
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor, attention_mask: Optional[Tuple] = None) -> torch.Tensor:
         """Forward pass.
 
         Parameters
         ----------
         inputs : Tensor with shape (..., num_items1, num_items2, num_channels)
             Input data
+        attention_mask : None or tuple of torch.Tensor
+            Optional attention masks
 
         Returns
         -------
@@ -477,22 +488,70 @@ class BaselineAxialTransformer(nn.Module):
             Outputs
         """
 
-        rearrange_pattern = "... i j c -> ... j i c"
-
         h = self.linear_in(inputs)
 
         for i, block in enumerate(self.blocks):
             # For first, third, ... block, we want to perform attention over the first token
             # dimension. We implement this by transposing the two item dimensions.
             if i % 2 == 1:
-                h = rearrange(h, rearrange_pattern)
+                h, input_batch_dims = self._reshape_data_before_odd_blocks(h)
+            else:
+                h, input_batch_dims = self._reshape_data_before_even_blocks(h)
 
-            h = block(h)
+            # Attention masks will also be different
+            if attention_mask is None:
+                this_attention_mask = None
+            else:
+                this_attention_mask = attention_mask[(i + 1) % 2]
+
+            h = block(h, attention_mask=this_attention_mask)
 
             # Transposing back to standard axis order
             if i % 2 == 1:
-                h = rearrange(h, rearrange_pattern)
+                h = self._reshape_data_after_odd_blocks(h, input_batch_dims)
+            else:
+                h = self._reshape_data_after_even_blocks(h, input_batch_dims)
 
         outputs = self.linear_out(h)
 
         return outputs
+
+    def _reshape_data_before_odd_blocks(self, h):
+        # Transpose token axes
+        h = rearrange(h, _REARRANGE_PATTERN)  # (axis2, axis1, ...)
+
+        # Prepare uncollapsing
+        input_batch_dims = h.shape[:2]
+
+        # Collapse dimensions
+        if self._collapse_dims_for_odd_blocks:
+            h = h.reshape(-1, *h.shape[2:])  # (axis2 * axis1, ...)
+
+        return h, input_batch_dims
+
+    def _reshape_data_after_odd_blocks(self, h, input_batch_dims):
+        # Uncollapse
+        if self._collapse_dims_for_odd_blocks:
+            h = h.reshape(*input_batch_dims, *h.shape[1:])  # (axis2, axis1, ...)
+
+        # Re-transpose token axes
+        h = rearrange(h, _REARRANGE_PATTERN)  # (axis1, axis2, ...)
+
+        return h
+
+    def _reshape_data_before_even_blocks(self, h):
+        # Prepare un-collapsing
+        input_batch_dims = h.shape[:2]
+
+        # Collapse
+        if self._collapse_dims_for_even_blocks:
+            h = h.reshape(-1, *h.shape[2:])  # (axis2 * axis1, ...)
+
+        return h, input_batch_dims
+
+    def _reshape_data_after_even_blocks(self, h, input_batch_dims):
+        # Uncollapse
+        if self._collapse_dims_for_even_blocks:
+            h = h.reshape(*input_batch_dims, *h.shape[1:])  # (axis2, axis1, ...)
+
+        return h

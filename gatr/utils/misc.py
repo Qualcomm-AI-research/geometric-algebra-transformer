@@ -17,8 +17,11 @@ def get_device() -> torch.device:
     return torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def frequency_check(step, every_n_steps, skip_initial=False):
+def frequency_check(step, every_n_steps, skip_initial=False, include_fractional=None):
     """Checks whether an action should be performed at a given step and frequency.
+
+    If `include_fractional` is given, the check also returns True when
+    `step == round(every_n_steps * fraction)` for each `fraction` in `include_fractional`.
 
     Parameters
     ----------
@@ -28,6 +31,9 @@ def frequency_check(step, every_n_steps, skip_initial=False):
         Desired action frequency. None or 0 correspond to never executing the action.
     skip_initial : bool
         If True, frequency_check returns False at step 0.
+    include_fractional : None or tuple of float
+        If not None, the check also returns True when `step == round(every_n_steps * fraction)`
+        for each `fraction` in `include_fractional`.
 
     Returns
     -------
@@ -40,6 +46,11 @@ def frequency_check(step, every_n_steps, skip_initial=False):
 
     if skip_initial and step == 0:
         return False
+
+    if include_fractional is not None:
+        for fraction in include_fractional:
+            if step == int(round(fraction * every_n_steps)):
+                return True
 
     return step % every_n_steps == 0
 
@@ -117,3 +128,19 @@ def make_full_edge_index(num_nodes, batchsize=1, self_loops=False, device=torch.
         edge_index = edge_index_per_batch
 
     return edge_index
+
+
+def get_batchsize(data):
+    """Given either a tensor or a list of tensors or a dict of tensors, returns the batchsize."""
+
+    if isinstance(data, Mapping):
+        assert len(data) > 0
+        data = next(iter(data.values()))
+    elif isinstance(data, (tuple, list)):
+        assert len(data) > 0
+        data = data[0]
+    elif isinstance(data, (tuple, list)):
+        assert len(data) > 0
+        data = data[0]
+
+    return len(data)

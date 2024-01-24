@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import matplotlib
 import mlflow
@@ -28,7 +28,7 @@ import gatr.utils.logger
 from gatr.layers import SelfAttentionConfig
 from gatr.layers.mlp.config import MLPConfig
 from gatr.utils.logger import logger
-from gatr.utils.misc import NaNError, flatten_dict, frequency_check, get_device
+from gatr.utils.misc import NaNError, flatten_dict, frequency_check, get_batchsize, get_device
 from gatr.utils.mlflow import log_mlflow
 from gatr.utils.plotting import MATPLOTLIB_PARAMS
 
@@ -58,6 +58,9 @@ class BaseExperiment:
         # Initialize state
         self.model: Optional[nn.Module] = None
         self.ema = None
+        self.optim = None
+        self.scheduler = None
+
         self.metrics = {}
         self._best_state = None
         self._training_start_time: Optional[float] = None
@@ -66,6 +69,9 @@ class BaseExperiment:
         self._initialize_experiment_folder()
         self._initialize_logger()
         self._silence_the_lambs()
+
+        # Training hooks: list of (state, hook_function)
+        self._hooks = []
 
     def __call__(self, train=True, evaluate=True):
         """Performs experiment as outlined below.
@@ -113,6 +119,7 @@ class BaseExperiment:
         # Create model
         self.model = self._create_model()
         assert self.model is not None
+        self.optim, self.scheduler = self._create_optimizer_and_scheduler()
 
         # Report number of parameters
         num_parameters = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
@@ -181,11 +188,8 @@ class BaseExperiment:
             f"Training for {self.cfg.training.steps} steps, that is, {num_epochs} epochs on a "
             f"dataset of size {len(train_data)} with batchsize {self.cfg.training.batchsize}"
         )
-        optim, scheduler = self._create_optimizer_and_scheduler()
 
         # Prepare book-keeping
-        train_metrics: Dict[str, Any] = defaultdict(list)
-        val_metrics: Dict[str, Any] = defaultdict(list)
         self._best_state = {"state_dict": None, "loss": None, "step": None}
         self._training_start_time = time.time()
 
@@ -205,7 +209,7 @@ class BaseExperiment:
 
             # Loop over steps
             for data in train_loader:
-                self._step(data, optim, scheduler, step, val_data, val_loader)
+                self._step(data, step, val_data, val_loader)
                 if step >= self.cfg.training.steps:
                     break
                 step += 1
@@ -234,8 +238,6 @@ class BaseExperiment:
             self.model.load_state_dict(self._best_state["state_dict"])
         else:
             logger.debug("Not using early stopping")
-
-        return train_metrics, val_metrics
 
     def validate(self, dataloader, step):
         """Runs validation loop, logs results, and may store state dict for early stopping.
@@ -336,9 +338,22 @@ class BaseExperiment:
             assert ema_path != model_path
             torch.save(self.ema.state_dict(), ema_path)
 
+    def register_hook(self, function, step=None, every_steps=None):
+        """Registers a hook.
+
+        Hooks are functions called either at a specific step or every n steps during training.
+        """
+        assert (step is None) != (every_steps is None)
+        self._hooks.append((step, every_steps, function))
+
     def _init_backend(self):
         """Initializes device, dtype, and attention implementation."""
+
+        # Device
         device = get_device()
+        logger.debug(f"Training on {device}")
+
+        # Dtype
         if self.cfg.training.float16 and torch.cuda.is_bf16_supported():
             dtype = torch.bfloat16
             logger.info("Training on bfloat16")
@@ -349,6 +364,7 @@ class BaseExperiment:
             dtype = torch.float32
             logger.info("Training on float32")
 
+        # Attention implementation
         torch.backends.cuda.enable_flash_sdp(self.cfg.training.enable_flash_sdp)
         torch.backends.cuda.enable_math_sdp(self.cfg.training.enable_math_sdp)
         torch.backends.cuda.enable_mem_efficient_sdp(self.cfg.training.enable_mem_efficient_sdp)
@@ -373,7 +389,7 @@ class BaseExperiment:
 
         # Print config to log
         logger.info(f"Running experiment at {self.cfg.exp_dir}")
-        logger.info(f"Config: \n{OmegaConf.to_yaml(self.cfg)}")
+        logger.debug(f"Config: \n{OmegaConf.to_yaml(self.cfg)}")
 
         # Set random seed
         torch.random.manual_seed(self.cfg.seed)
@@ -547,12 +563,14 @@ class BaseExperiment:
         """Data preparation during training loop, e.g. to move data to correct device and dtype."""
         if isinstance(data, (tuple, list)):
             data = tuple(x.to(device or self.device) for x in data)
+        elif isinstance(data, dict):
+            data = ({k: x.to(device or self.device) for k, x in data.items()},)
         else:
             data = (data.to(device or self.device),)
 
         return data
 
-    def _step(self, data, optim, scheduler, step, val_data, val_loader):
+    def _step(self, data, step, val_data, val_loader):
         """Everything that that may happen per step."""
 
         # Move data to GPU, and other and other data prep stuff
@@ -567,8 +585,12 @@ class BaseExperiment:
                 loss, metrics = self._forward(*data)
 
         # Optimizer step
-        grad_norm = self._optimizer_step(loss, optim)
+        grad_norm = self._optimizer_step(loss)
 
+        # Post-step hooks: logging, validating, checkpoint saving, etc
+        self._post_step(loss, metrics, grad_norm, step, val_data, val_loader)
+
+    def _post_step(self, loss, metrics, grad_norm, step, val_data, val_loader):
         # Log loss and metrics
         self._log(loss, metrics, grad_norm, step)
 
@@ -582,7 +604,9 @@ class BaseExperiment:
             self.validate(val_loader, step)
 
         # Plotting
-        if frequency_check(step, self.cfg.training.plot_every_n_steps, skip_initial=False):
+        if frequency_check(
+            step, self.cfg.training.plot_every_n_steps, include_fractional=(0.01, 0.1)
+        ):
             self.visualize(val_data, step)
 
         # Save model checkpoint
@@ -591,19 +615,23 @@ class BaseExperiment:
 
         # LR scheduler
         if frequency_check(step, self.cfg.training.update_lr_every_n_steps, skip_initial=True):
-            scheduler.step()
-            logger.debug(f"Decaying LR to {scheduler.get_last_lr()[0]}")
-            log_mlflow("train.lr", scheduler.get_last_lr()[0], step=step)
+            self.scheduler.step()
+            logger.debug(f"Decaying LR to {self.scheduler.get_last_lr()[0]}")
+            log_mlflow("train.lr", self.scheduler.get_last_lr()[0], step=step)
 
-        return step
+        # Custom hooks
+        for hook_step, hook_every_step, hook in self._hooks:
+            if hook_step == step or frequency_check(step, hook_every_step):
+                hook(model=self.model, step=step, experiment=self)
 
-    def _optimizer_step(self, loss, optim):
+    def _optimizer_step(self, loss):
         """Optimizer step and gradient norm clipping."""
-        assert self.model is not None
+
+        assert self.optim is not None
         if not torch.isfinite(loss):
             raise NaNError("NaN in loss!")
 
-        optim.zero_grad()
+        self.optim.zero_grad()
         loss.backward()
 
         # Grad norm clipping
@@ -619,7 +647,7 @@ class BaseExperiment:
                     print(f"Non-finite grad in {n}")
             raise e
 
-        optim.step()
+        self.optim.step()
         if self.ema is not None:
             self.ema.update()
 
@@ -655,7 +683,7 @@ class BaseExperiment:
             loss, metrics = self._forward(*data)
 
             # Weight for this batch (last batches may be smaller)
-            batchsize = len(data[0])
+            batchsize = get_batchsize(data[0])
             weight = batchsize / len(dataloader.dataset)
 
             # Book-keeping

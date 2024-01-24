@@ -174,7 +174,7 @@ def embed_3d_object_two_vec(position: torch.Tensor, orientation: torch.Tensor) -
 
     # Two-vec -> three vectors
     orientation = orientation.reshape(*orientation.shape[:-2], 2, 3)
-    third_vec = torch.cross(orientation[..., [0], :], orientation[..., [1], :])
+    third_vec = torch.linalg.cross(orientation[..., [0], :], orientation[..., [1], :])
     orientation = torch.cat((orientation, third_vec), dim=-2)
 
     # Embed orientation as planes
