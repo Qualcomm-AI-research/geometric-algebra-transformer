@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0] - 2024-02-19
+
+### Added
+
+- Expose `join_reference` kwarg in `GATr.forward()`, `AxialGATr.forward()`
+- Add utility function `gatr.utils.compile_linear.compile_equi_linear_submodules()`
+
+### Removed
+
+- Remove option to *not* provide a position in `embed_oriented_plane()`, `embed_reflection()`
+
 ## [1.1.1] - 2024-01-10
 
 _Minor cleanup._

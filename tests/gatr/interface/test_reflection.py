@@ -25,7 +25,8 @@ def test_reflection_embedding_consistency(batch_dims):
     """Tests whether reflection embeddings into multivectors are cycle consistent."""
     reflection_normals = torch.randn(*batch_dims, 3)
     reflection_normals /= torch.linalg.norm(reflection_normals, dim=-1).unsqueeze(-1)
-    multivectors = embed_reflection(reflection_normals)
+    reflection_pos = torch.randn(*batch_dims, 3)
+    multivectors = embed_reflection(reflection_normals, reflection_pos)
     reflection_normals_reencoded = extract_reflection(multivectors)
     torch.testing.assert_close(reflection_normals, reflection_normals_reencoded, **TOLERANCES)
 
@@ -47,7 +48,7 @@ def test_reflection_on_point(batch_dims, reflection_normal_to_axis):
 
     # Embed points and translations into MV
     points_embedding = embed_point(points)
-    reflection_embedding = embed_reflection(reflection_normal)
+    reflection_embedding = embed_reflection(reflection_normal, torch.zeros_like(reflection_normal))
 
     # Compute translation in multivector space with sandwich product
     reflected_sandwich = geometric_product(reflection_embedding, points_embedding)
@@ -73,12 +74,14 @@ def test_reflection_on_plane(batch_dims, reflection_normal_to_axis):
     # Plane
     plane_normals = torch.randn(*batch_dims, 3)
     plane_normals /= torch.linalg.norm(plane_normals, dim=-1).unsqueeze(-1)
-    plane = embed_oriented_plane(plane_normals)
+    plane_pos = torch.zeros_like(plane_normals)
+    plane = embed_oriented_plane(plane_normals, plane_pos)
 
     # Reflection
     reflection_normal = torch.zeros(3)
     reflection_normal[reflection_normal_to_axis] = 1.0
-    reflection = embed_reflection(reflection_normal)
+    reflection_pos = torch.zeros_like(reflection_normal)
+    reflection = embed_reflection(reflection_normal, reflection_pos)
 
     # Reflected plane from sandwich product
     reflected_plane = grade_involute(
@@ -102,10 +105,11 @@ def test_reflection_on_scalar(batch_dims):
     inputs = torch.randn(*batch_dims, 1)
     reflection_normals = torch.randn(*batch_dims, 3)
     reflection_normals /= torch.linalg.norm(reflection_normals, dim=-1).unsqueeze(-1)
+    reflection_pos = torch.zeros_like(reflection_normals)
 
     # Embed planes and translations into MV
     inputs_embedding = embed_scalar(inputs)
-    reflection_embedding = embed_reflection(reflection_normals)
+    reflection_embedding = embed_reflection(reflection_normals, reflection_pos)
 
     # Compute translation in multivector space with sandwich product
     reflected_inputs = geometric_product(reflection_embedding, inputs_embedding)
@@ -125,10 +129,11 @@ def test_reflection_on_pseudoscalar(batch_dims):
     inputs = torch.randn(*batch_dims, 1)
     reflection_normals = torch.randn(*batch_dims, 3)
     reflection_normals /= torch.linalg.norm(reflection_normals, dim=-1).unsqueeze(-1)
+    reflection_pos = torch.zeros_like(reflection_normals)
 
     # Embed planes and translations into MV
     inputs_embedding = embed_pseudoscalar(inputs)
-    reflection_embedding = embed_reflection(reflection_normals)
+    reflection_embedding = embed_reflection(reflection_normals, reflection_pos)
     inv_reflection_embedding = reflection_embedding
 
     # Compute translation in multivector space with sandwich product

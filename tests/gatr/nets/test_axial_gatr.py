@@ -18,6 +18,7 @@ S_CHANNELS = [(None, None, 7, [False, False]), (4, 5, 6, [True, True])]
 @pytest.mark.parametrize("num_heads", [4])
 @pytest.mark.parametrize("num_blocks", [1])
 @pytest.mark.parametrize("in_s_channels,out_s_channels,hidden_s_channels,pos_encoding", S_CHANNELS)
+@pytest.mark.parametrize("join_reference", ["data", "canonical"])
 def test_axial_gatr_shape(
     batch_dims,
     num_items1,
@@ -31,6 +32,7 @@ def test_axial_gatr_shape(
     out_s_channels,
     hidden_s_channels,
     pos_encoding,
+    join_reference,
 ):
     """Tests the output shape of AxialGATr."""
     inputs = torch.randn(*batch_dims, num_items1, num_items2, in_mv_channels, 16)
@@ -52,7 +54,7 @@ def test_axial_gatr_shape(
         pos_encodings=pos_encoding,
     )
 
-    outputs, output_scalars = net(inputs, scalars=scalars)
+    outputs, output_scalars = net(inputs, scalars=scalars, join_reference=join_reference)
 
     assert outputs.shape == (*batch_dims, num_items1, num_items2, out_mv_channels, 16)
     if in_s_channels is not None:

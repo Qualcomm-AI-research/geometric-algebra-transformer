@@ -1,5 +1,6 @@
 ## Code quality
 black~=22.8.0
+isort~=5.13.2
 mypy==1.1.1
 pydocstyle
 pylint~=2.15.0

@@ -6,13 +6,14 @@ from dataclasses import replace
 from typing import Optional, Tuple, Union
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.checkpoint import checkpoint
 
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.gatr_block import GATrBlock
 from gatr.layers.linear import EquiLinear
 from gatr.layers.mlp.config import MLPConfig
+from gatr.utils.tensors import construct_reference_multivector
 
 
 class GATr(nn.Module):
@@ -112,6 +113,7 @@ class GATr(nn.Module):
         multivectors: torch.Tensor,
         scalars: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        join_reference: Union[Tensor, str] = "data",
     ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
         """Forward pass of the network.
 
@@ -123,6 +125,10 @@ class GATr(nn.Module):
             Optional input scalars.
         attention_mask: None or torch.Tensor with shape (..., num_items, num_items)
             Optional attention mask
+        join_reference : Tensor with shape (..., 16) or {"data", "canonical"}
+            Reference multivector for the equivariant joint operation. If "data", a
+            reference multivector is constructed from the mean of the input multivectors. If
+            "canonical", a constant canonical reference multivector is used instead.
 
         Returns
         -------
@@ -133,7 +139,7 @@ class GATr(nn.Module):
         """
 
         # Reference multivector and channels that will be re-inserted in any query / key computation
-        reference_mv = self._construct_dual_reference(multivectors)
+        reference_mv = construct_reference_multivector(join_reference, multivectors)
         additional_qk_features_mv, additional_qk_features_s = self._construct_reinserted_channels(
             multivectors, scalars
         )
@@ -181,13 +187,3 @@ class GATr(nn.Module):
             additional_qk_features_s = scalars[..., self._reinsert_s_channels]
 
         return additional_qk_features_mv, additional_qk_features_s
-
-    @staticmethod
-    def _construct_dual_reference(inputs: torch.Tensor) -> torch.Tensor:
-        """Constructs a reference vector for the equivariant join from the inputs."""
-
-        # When using torch-geometric-style batching, this code should be adapted to perform the
-        # mean over the items in each batch, but not over the batch dimension.
-        # We leave this as an exercise for the practitioner :)
-        mean_dim = tuple(range(1, len(inputs.shape) - 1))
-        return torch.mean(inputs, dim=mean_dim, keepdim=True)  # (batch, 1, ..., 1, 16)

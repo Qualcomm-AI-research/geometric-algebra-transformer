@@ -5,13 +5,14 @@ from typing import Optional, Tuple, Union
 
 import torch
 from einops import rearrange
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.checkpoint import checkpoint
 
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.gatr_block import GATrBlock
 from gatr.layers.linear import EquiLinear
 from gatr.layers.mlp.config import MLPConfig
+from gatr.utils.tensors import construct_reference_multivector
 
 # Default rearrange patterns for odd blocks
 _MV_REARRANGE_PATTERN = "... i j c x -> ... j i c x"
@@ -114,36 +115,40 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
 
     def forward(
         self,
-        multivectors: torch.Tensor,
-        scalars: Optional[torch.Tensor] = None,
+        multivectors: Tensor,
+        scalars: Optional[Tensor] = None,
         attention_mask: Optional[Tuple] = None,
-    ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
+        join_reference: Union[Tensor, str] = "data",
+    ) -> Tuple[Tensor, Optional[Tensor]]:
         """Forward pass of the network.
 
         Parameters
         ----------
-        multivectors : torch.Tensor with shape (..., num_items_1, num_items_2, in_mv_channels, 16)
+        multivectors : Tensor with shape (..., num_items_1, num_items_2, in_mv_channels, 16)
             Input multivectors.
-        scalars : None or torch.Tensor with shape (..., num_items_1, num_items_2, in_s_channels)
+        scalars : None or Tensor with shape (..., num_items_1, num_items_2, in_s_channels)
             Optional input scalars.
-        attention_mask : None or tuple of torch.Tensor
-            Optional attention masks
+        attention_mask : None or tuple of Tensor
+            Optional attention masks.
+        join_reference : Tensor with shape (..., 16) or {"data", "canonical"}
+            Reference multivector for the equivariant joint operation. If "data", a
+            reference multivector is constructed from the mean of the input multivectors. If
+            "canonical", a constant canonical reference multivector is used instead.
 
         Returns
         -------
-        outputs_mv : torch.Tensor with shape (..., num_items_1, num_items_2, out_mv_channels, 16)
+        outputs_mv : Tensor with shape (..., num_items_1, num_items_2, out_mv_channels, 16)
             Output multivectors.
-        outputs_s : None or torch.Tensor with shape
+        outputs_s : None or Tensor with shape
             (..., num_items_1, num_items_2, out_mv_channels, 16)
             Output scalars, if scalars are provided. Otherwise None.
         """
 
-        # Reference multivector
-        reference_mv = self._construct_dual_reference(multivectors)
+        # Reference MV for equivariant join
+        reference_mv = construct_reference_multivector(join_reference, multivectors)
 
         # Pass through the blocks
         h_mv, h_s = self.linear_in(multivectors, scalars=scalars)
-
         for i, block in enumerate(self.blocks):
             # For first, third, ... block, we want to perform attention over the first token
             # dimension. We implement this by transposing the two item dimensions.
@@ -186,7 +191,7 @@ class AxialGATr(nn.Module):  # pylint: disable=duplicate-code
         return outputs_mv, outputs_s
 
     @staticmethod
-    def _construct_dual_reference(inputs: torch.Tensor):
+    def _construct_join_reference(inputs: Tensor):
         """Constructs a reference vector for dualization from the inputs."""
 
         # When using torch-geometric-style batching, this code should be adapted to perform the

@@ -70,9 +70,10 @@ def test_translation_on_plane(batch_dims):
     normals = torch.randn(*batch_dims, 3)
     normals /= torch.linalg.norm(normals, dim=-1).unsqueeze(-1)
     translation_vectors = torch.randn(*batch_dims, 3)
+    pos = torch.zeros_like(normals)
 
     # Embed planes and translations into MV
-    plane_embedding = embed_oriented_plane(normals)
+    plane_embedding = embed_oriented_plane(normals, pos)
     translations_embedding = embed_translation(translation_vectors)
     inv_translations_embedding = reverse(translations_embedding)
 

@@ -1,6 +1,9 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
+from typing import Union
+
 import torch
+from torch import Tensor
 
 
 def expand_pairwise(*tensors, exclude_dims=()):
@@ -49,3 +52,45 @@ def block_stack(tensors, dim1, dim2):
         padded_tensors.append(padded)
         offset += tensor.shape[dim2]
     return torch.cat(padded_tensors, dim1)
+
+
+def construct_reference_multivector(reference: Union[Tensor, str], inputs: Tensor) -> Tensor:
+    """Constructs a reference vector for the equivariant join.
+
+    Parameters
+    ----------
+    reference : Tensor with shape (..., 16) or {"data", "canonical"}
+        Reference multivector for the equivariant joint operation. If "data", a
+        reference multivector is constructed from the mean of the input multivectors. If
+        "canonical", a constant canonical reference multivector is used instead.
+    inputs : Tensor with shape (..., num_items_1, num_items_2, in_mv_channels, 16)
+        Input multivectors.
+
+    Returns
+    -------
+    reference_mv : Tensor with shape (..., 16)
+        Reference multivector for the equivariant join.
+
+    Raises
+    ------
+    ValueError
+        If `reference` is neither "data", "canonical", nor a Tensor.
+    """
+
+    if reference == "data":
+        # When using torch-geometric-style batching, this code should be adapted to perform the
+        # mean over the items in each batch, but not over the batch dimension.
+        # We leave this as an exercise for the practitioner :)
+        mean_dim = tuple(range(1, len(inputs.shape) - 1))
+        reference_mv = torch.mean(inputs, dim=mean_dim, keepdim=True)  # (batch, 1, ..., 1, 16)
+    elif reference == "canonical":
+        reference_mv = torch.zeros(16).to(inputs.device, inputs.dtype)
+        reference_mv[..., [14, 15]] = 1.0
+    else:
+        if not isinstance(reference, Tensor):
+            raise ValueError(
+                'Reference needs to be "data", "canonical", or torch.Tensor, but found {reference}'
+            )
+        reference_mv = reference
+
+    return reference_mv

@@ -279,8 +279,8 @@ def verify_installation_through_imports() -> None:
         from coronary_mesh_convolution import datasets  # type: ignore[import]
         from coronary_mesh_convolution.data import MultiscaleData  # type: ignore[import]
         from se3_transformer.equivariant_attention.fibers import Fiber  # type: ignore[import]
-        from se3_transformer.equivariant_attention.from_se3cnn.SO3 import (  # type: ignore[import]
-            irr_repr,
+        from se3_transformer.equivariant_attention.from_se3cnn.SO3 import (
+            irr_repr,  # type: ignore[import]
         )
         from se3_transformer.equivariant_attention.modules import GSE3Res  # type: ignore[import]
         from se3_transformer.utils import utils_profiling  # type: ignore[import]

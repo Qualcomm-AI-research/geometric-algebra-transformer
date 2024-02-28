@@ -178,14 +178,9 @@ def embed_3d_object_two_vec(position: torch.Tensor, orientation: torch.Tensor) -
     orientation = torch.cat((orientation, third_vec), dim=-2)
 
     # Embed orientation as planes
-    planes = embed_oriented_plane(orientation)
-    t = embed_translation(position)  # (..., 1, 16)
-    orientation_embedding = geometric_product(
-        geometric_product(t, planes), reverse(t)
-    )  # (..., 3, 16)
+    orientation_embedding = embed_oriented_plane(orientation, position)  # (..., 3, 16)
 
     embedding = torch.cat((point_embedding, orientation_embedding), dim=-2)  # (..., 4, 16)
-
     return embedding
 
 

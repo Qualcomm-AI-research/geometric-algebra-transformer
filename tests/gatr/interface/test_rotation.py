@@ -71,9 +71,9 @@ def test_rotation_on_plane(batch_dims):
 
     # Method 2: Embed as multivectors and use sandwich product
     m = embed_rotation(q)
-    p = embed_oriented_plane(normals)
+    p = embed_oriented_plane(normals, torch.zeros_like(normals))
     mpm = geometric_product(geometric_product(m, p), reverse(m))
-    rxp = embed_oriented_plane(rx)
+    rxp = embed_oriented_plane(rx, torch.zeros_like(normals))
     mpmx = extract_oriented_plane(mpm)
 
     torch.testing.assert_close(mpm, rxp, **TOLERANCES)

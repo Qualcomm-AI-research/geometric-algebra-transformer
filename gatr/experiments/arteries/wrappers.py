@@ -5,14 +5,7 @@ from torch import nn
 from xformers.ops.fmha import BlockDiagonalMask
 
 from gatr.experiments.base_wrapper import BaseWrapper
-from gatr.interface import (
-    embed_oriented_plane,
-    embed_point,
-    embed_scalar,
-    embed_translation,
-    extract_translation,
-)
-from gatr.primitives import geometric_product
+from gatr.interface import embed_oriented_plane, embed_point, embed_scalar, extract_translation
 
 
 def build_attention_mask(inputs):
@@ -113,11 +106,8 @@ class ArteryGATrWrapper(BaseWrapper):
 
         # Embed in GA
         positions = embed_point(pos)
-        mesh_normals = embed_oriented_plane(mesh_normals)
-        mesh_normals = geometric_product(
-            geometric_product(embed_translation(pos), mesh_normals), embed_translation(-pos)
-        )
-        inlet_distance = embed_scalar(inlet_distance)  # ?!
+        mesh_normals = embed_oriented_plane(mesh_normals, pos)
+        inlet_distance = embed_scalar(inlet_distance)
 
         # NaN debugging
         assert torch.all(torch.isfinite(positions))

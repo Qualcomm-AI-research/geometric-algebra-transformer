@@ -361,7 +361,15 @@ geometric-algebra-transformer
 │   setup.py: installation script
 ```
 
-## 5. Citation
+## 5. Other geometric algebras
+
+The GATr paper and this repository use the projective geometric algebra. In the work
+[Euclidean, Projective, Conformal: Choosing a Geometric Algebra for Equivariant Transformers](https://arxiv.org/abs/2311.04744),
+we explored using the Euclidean and conformal algebras instead. We found a nuanced trade-off
+between the different algebras for their use in GATr. At the moment, the code for the different
+algebras has not been released.
+
+## 6. Citation
 
 If you find our code useful, please cite:
 
@@ -374,5 +382,13 @@ If you find our code useful, please cite:
   volume = {37},
   eprint = {2305.18415},
   url = {https://arxiv.org/abs/2305.18415},
+}
+
+@inproceedings{dehaan2023euclidean,
+  title={Euclidean, Projective, Conformal: Choosing a Geometric Algebra for Equivariant Transformers}, 
+  author={Pim de Haan and Taco Cohen and Johann Brehmer},
+  booktitle = {Proceedings of The 27th International Conference on Artificial Intelligence and Statistics},
+  year={2024},
+  url = {https://arxiv.org/abs/2311.04744},
 }
 ```

@@ -19,6 +19,7 @@ S_CHANNELS = [(None, None, 7, False), (4, 5, 6, True)]
 @pytest.mark.parametrize("in_s_channels,out_s_channels,hidden_s_channels,pos_encoding", S_CHANNELS)
 @pytest.mark.parametrize("dropout_prob", [None, 0.0, 0.3])
 @pytest.mark.parametrize("multi_query_attention", [False, True])
+@pytest.mark.parametrize("join_reference", ["data", "canonical"])
 def test_gatr_shape(
     batch_dims,
     num_items,
@@ -33,6 +34,7 @@ def test_gatr_shape(
     pos_encoding,
     multi_query_attention,
     dropout_prob,
+    join_reference,
 ):
     """Tests the output shape of EquiTransformer."""
     inputs = torch.randn(*batch_dims, num_items, in_mv_channels, 16)
@@ -57,7 +59,7 @@ def test_gatr_shape(
         # Some features require scalar inputs, and failing without them is fine
         return
 
-    outputs, output_scalars = net(inputs, scalars=scalars)
+    outputs, output_scalars = net(inputs, scalars=scalars, join_reference=join_reference)
 
     assert outputs.shape == (*batch_dims, num_items, out_mv_channels, 16)
     if in_s_channels is not None:

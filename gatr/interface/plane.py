@@ -1,16 +1,13 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from typing import Optional
-
 import torch
+from torch import Tensor
 
 from gatr.interface.translation import embed_translation
 from gatr.primitives.bilinear import geometric_product
 
 
-def embed_oriented_plane(
-    normal: torch.Tensor, position: Optional[torch.Tensor] = None
-) -> torch.Tensor:
+def embed_oriented_plane(normal: Tensor, position: Tensor) -> Tensor:
     """Embeds an (oriented plane) in the PGA.
 
     Following L. Dorst, the plane is represent as PGA vectors.
@@ -22,10 +19,10 @@ def embed_oriented_plane(
 
     Parameters
     ----------
-    position : torch.Tensor with shape (..., 3) or None
-        One position on the plane. If None, the plane goes through the origin.
     normal : torch.Tensor with shape (..., 3)
         Normal to the plane.
+    position : torch.Tensor with shape (..., 3)
+        One position on the plane.
 
     Returns
     -------
@@ -41,12 +38,11 @@ def embed_oriented_plane(
     multivector[..., 2:5] = normal[..., :]
 
     # Shift away from origin by translating
-    if position is not None:
-        translation = embed_translation(position)
-        inverse_translation = embed_translation(-position)
-        multivector = geometric_product(
-            geometric_product(translation, multivector), inverse_translation
-        )
+    translation = embed_translation(position)
+    inverse_translation = embed_translation(-position)
+    multivector = geometric_product(
+        geometric_product(translation, multivector), inverse_translation
+    )
 
     return multivector
 
