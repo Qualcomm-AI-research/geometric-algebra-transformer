@@ -2,10 +2,11 @@
 # All rights reserved.
 import pytest
 import torch
+from xformers.ops.fmha.attn_bias import BlockDiagonalMask
 
 from gatr.interface import embed_point, embed_scalar
 from gatr.primitives import geometric_attention, pga_attention, sdp_attention
-from gatr.primitives.attention import lin_square_normalizer
+from gatr.primitives.attention import _lin_square_normalizer
 from tests.helpers import BATCH_DIMS, TOLERANCES, check_pin_equivariance
 
 
@@ -107,7 +108,7 @@ def test_geometric_attention_shape(
 
     # Compute attention outputs
     outputs, outputs_scalar = geometric_attention(
-        q_mv, k_mv, v_mv, q_s, k_s, v_s, normalizer=lin_square_normalizer
+        q_mv, k_mv, v_mv, q_s, k_s, v_s, normalizer=_lin_square_normalizer
     )
 
     # Check shape of outputs
@@ -207,9 +208,53 @@ def test_geometric_attention_proximity():
 
     # Compute attention
     out_mv, out_s = geometric_attention(
-        q_mv, k_mv, v_mv, q_s, k_s, v_s, normalizer=lin_square_normalizer
+        q_mv, k_mv, v_mv, q_s, k_s, v_s, normalizer=_lin_square_normalizer
     )
 
     # Check that we attended to closer one
     torch.testing.assert_close(out_mv, v_mv[[0]], **TOLERANCES)
     torch.testing.assert_close(out_s, v_s[[0]], **TOLERANCES)
+
+
+@pytest.mark.parametrize("block_attention", [True, False])
+def test_geometric_cross_attention(block_attention):
+    """Test cross attention shapes."""
+    num_q = 100
+    num_kv = 51
+    num_heads = 2
+    mv_ch_qk = 3
+    mv_ch_v = 4
+    s_ch_qk = 3
+    s_ch_v = 4
+    multi_query = True
+    num_heads_kv = 1 if multi_query else num_heads
+    device = torch.device("cuda")
+
+    if block_attention:
+        attn_mask = BlockDiagonalMask.from_seqlens([31, 29, 40], [3, 7, 21])
+        num_batch = 1
+    else:
+        attn_mask = None
+        num_batch = 2
+
+    # Data
+    q_mv = torch.randn(num_batch, num_heads, num_q, mv_ch_qk, 16, device=device)
+    k_mv = torch.randn(num_batch, num_heads_kv, num_kv, mv_ch_qk, 16, device=device)
+    v_mv = torch.randn(num_batch, num_heads_kv, num_kv, mv_ch_v, 16, device=device)
+    q_s = torch.randn(num_batch, num_heads, num_q, s_ch_qk, device=device)
+    k_s = torch.randn(num_batch, num_heads_kv, num_kv, s_ch_qk, device=device)
+    v_s = torch.randn(num_batch, num_heads_kv, num_kv, s_ch_v, device=device)
+
+    out_mv, out_s = geometric_attention(
+        q_mv,
+        k_mv,
+        v_mv,
+        q_s,
+        k_s,
+        v_s,
+        normalizer=_lin_square_normalizer,
+        attn_mask=attn_mask,
+    )
+
+    assert out_mv.shape == (num_batch, num_heads, num_q, mv_ch_v, 16)
+    assert out_s.shape == (num_batch, num_heads, num_q, s_ch_v)

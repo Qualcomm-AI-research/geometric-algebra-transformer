@@ -14,6 +14,7 @@ from xformers.ops import AttentionBias, memory_efficient_attention
 from gatr.primitives.dual import join_norm
 from gatr.primitives.invariants import inner_product
 from gatr.utils.einsum import cached_einsum
+from gatr.utils.misc import minimum_autocast_precision
 from gatr.utils.tensors import expand_pairwise, to_nd
 
 # When computing the normalization factor in attention weights, multivectors contribute with the
@@ -239,6 +240,7 @@ def _build_dist_basis(device, dtype) -> Tuple[Tensor, Tensor]:
     return basis_q, basis_k
 
 
+@minimum_autocast_precision(torch.float32, output="low")
 def _build_dist_vec(tri: Tensor, basis: Tensor, normalizer: Callable[[Tensor], Tensor]) -> Tensor:
     """Build 5D vector whose inner product with another such vector computes the squared distance.
 
@@ -261,7 +263,7 @@ def _build_dist_vec(tri: Tensor, basis: Tensor, normalizer: Callable[[Tensor], T
     return vec
 
 
-def lin_square_normalizer(v: Tensor, epsilon=0.001) -> Tensor:
+def _lin_square_normalizer(v: Tensor, epsilon=0.001) -> Tensor:
     """Apply linear square normalization to the input tensor.
 
     Parameters
@@ -441,9 +443,10 @@ def scaled_dot_product_attention(
         of shape [batch, head, item, d]
     """
     if FORCE_XFORMERS or isinstance(attn_mask, AttentionBias):
-        query = query.transpose(1, 2)  # [batch, head, item, d] -> [batch, item, head, d]
-        key = key.transpose(1, 2)
-        value = value.transpose(1, 2)
+        # [batch, head, item, d] -> [batch, item, head, d]
+        query = query.transpose(1, 2).contiguous()
+        key = key.transpose(1, 2).contiguous()
+        value = value.transpose(1, 2).contiguous()
         out = memory_efficient_attention(
             query.contiguous(), key.contiguous(), value, attn_bias=attn_mask
         )

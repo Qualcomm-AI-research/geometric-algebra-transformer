@@ -8,6 +8,7 @@ import torch.linalg
 from gatr.primitives.bilinear import _load_bilinear_basis
 from gatr.primitives.linear import _compute_reversal, grade_project
 from gatr.utils.einsum import cached_einsum
+from gatr.utils.misc import minimum_autocast_precision
 
 
 @lru_cache()
@@ -74,6 +75,7 @@ def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -
     return outputs
 
 
+@minimum_autocast_precision(torch.float32)
 def norm(x: torch.Tensor) -> torch.Tensor:
     """Computes the GA norm of an input multivector.
 

@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from gatr.layers.attention.config import SelfAttentionConfig
-from gatr.primitives.attention import geometric_attention, lin_square_normalizer
+from gatr.primitives.attention import _lin_square_normalizer, geometric_attention
 
 
 class GeometricAttention(nn.Module):
@@ -38,7 +38,7 @@ class GeometricAttention(nn.Module):
     def __init__(self, config: SelfAttentionConfig) -> None:
         super().__init__()
 
-        self.normalizer = partial(lin_square_normalizer, epsilon=config.normalizer_eps)
+        self.normalizer = partial(_lin_square_normalizer, epsilon=config.normalizer_eps)
         self.log_weights = nn.Parameter(
             torch.zeros((config.num_heads, 1, config.hidden_mv_channels))
         )

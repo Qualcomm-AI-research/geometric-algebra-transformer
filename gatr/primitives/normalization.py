@@ -3,8 +3,10 @@
 import torch
 
 from gatr.primitives.invariants import inner_product
+from gatr.utils.misc import minimum_autocast_precision
 
 
+@minimum_autocast_precision(torch.float32)
 def equi_layer_norm(
     x: torch.Tensor, channel_dim: int = -2, gain: float = 1.0, epsilon: float = 0.01
 ) -> torch.Tensor:

@@ -127,4 +127,4 @@ class SlowRandomPinTransform:
         # Back to tensor
         outputs = mv_list_to_tensor(outputs_mv, batch_shape=batch_dims)
 
-        return outputs
+        return outputs.to(device=inputs.device, dtype=inputs.dtype)

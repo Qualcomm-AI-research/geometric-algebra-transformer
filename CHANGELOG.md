@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.2] - 2024-03-13
+
+_Minor cleanup._
+
+## [1.2.1] - 2024-03-13
+
+### Changed
+
+- Autocast normalization layers and attention features to fp32 in mixed-precision training
+
+### Added
+
+- Add `CrossAttention` layer
+
+### Fixed
+
+- Fix bug in attention layers that lead to crashes when using an xformers backend and not using multi-query attention
+
 ## [1.2.0] - 2024-02-19
 
 ### Added

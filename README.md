@@ -5,7 +5,7 @@ This repository contains the official implementation of the
 [Johann Brehmer](mailto:jbrehmer@qti.qualcomm.com), Pim de Haan, Sönke Behrends, and Taco Cohen,
 published at NeurIPS 2023.
 
-![GATr = geometric algebra representations + equivariant layers + Transformer architecture](img/gatr-.png)
+![GATr = geometric algebra representations + equivariant layers + Transformer architecture](img/gatr.png)
 
 ## 1. Abstract
 
@@ -385,10 +385,12 @@ If you find our code useful, please cite:
 }
 
 @inproceedings{dehaan2023euclidean,
-  title={Euclidean, Projective, Conformal: Choosing a Geometric Algebra for Equivariant Transformers}, 
-  author={Pim de Haan and Taco Cohen and Johann Brehmer},
+  title = {Euclidean, Projective, Conformal: Choosing a Geometric Algebra for Equivariant Transformers}, 
+  author = {Pim de Haan and Taco Cohen and Johann Brehmer},
   booktitle = {Proceedings of The 27th International Conference on Artificial Intelligence and Statistics},
-  year={2024},
+  year = {2024},
+  volume = {27},
+  eprint = {2311.04744},
   url = {https://arxiv.org/abs/2311.04744},
 }
 ```
