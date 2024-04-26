@@ -361,6 +361,16 @@ geometric-algebra-transformer
 │   setup.py: installation script
 ```
 
+### Support for `torch.compile`
+
+GATr v1.3 now supports compilation using `torch.compile`. However, be aware that **compilation is
+experimental and may yield errors or warnings based on your hardware, model, data, and torch
+version**, and we will not be able to offer support for compilation errors.
+If you choose to use compilation, start with
+`torch.compile(model, dynamic=True, fullgraph=False)`. Compilation fails with our caching mechanism
+for `torch.einsum` (failure observed for `torch==2.2.1`), so the caching mechanism should be
+disabled by calling `gatr.utils.einsum.enable_cached_einsum(False)`.
+
 ## 5. Other geometric algebras
 
 The GATr paper and this repository use the projective geometric algebra. In the work
@@ -387,7 +397,7 @@ If you find our code useful, please cite:
 @inproceedings{dehaan2023euclidean,
   title = {Euclidean, Projective, Conformal: Choosing a Geometric Algebra for Equivariant Transformers}, 
   author = {Pim de Haan and Taco Cohen and Johann Brehmer},
-  booktitle = {Proceedings of The 27th International Conference on Artificial Intelligence and Statistics},
+  booktitle = {Proceedings of the 27th International Conference on Artificial Intelligence and Statistics},
   year = {2024},
   volume = {27},
   eprint = {2311.04744},

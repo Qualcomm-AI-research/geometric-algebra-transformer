@@ -1,20 +1,19 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from functools import lru_cache
 from itertools import product
 from typing import Tuple
 
 import torch
 
 from gatr.primitives.bilinear import outer_product
-from gatr.utils.einsum import cached_einsum
+from gatr.utils.einsum import gatr_cache, gatr_einsum
 from gatr.utils.misc import minimum_autocast_precision
 
 # Flag which reference join implementations we're using
 _USE_EFFICIENT_JOIN = True
 
 
-@lru_cache()
+@gatr_cache
 @torch.no_grad()
 def _compute_dualization(
     device=torch.device("cpu"), dtype=torch.float32
@@ -42,7 +41,7 @@ def _compute_dualization(
     return permutation, factors
 
 
-@lru_cache()
+@gatr_cache
 @torch.no_grad()
 def _compute_efficient_join(device=torch.device("cpu"), dtype=torch.float32) -> torch.Tensor:
     """Constructs a kernel for the join operation.
@@ -79,7 +78,7 @@ def _compute_efficient_join(device=torch.device("cpu"), dtype=torch.float32) -> 
     return kernel
 
 
-@lru_cache()
+@gatr_cache
 @torch.no_grad()
 def _compute_join_norm_idx(threshold=0.5) -> Tuple[list, list, list]:
     """Constructs everything we need to compute norm(equi_norm(x,y)) in a memory-efficient way.
@@ -244,7 +243,7 @@ def efficient_equivariant_join(
     """
 
     kernel = _compute_efficient_join(x.device, x.dtype)
-    return reference[..., [14]] * cached_einsum("i j k , ... j, ... k -> ... i", kernel, x, y)
+    return reference[..., [14]] * gatr_einsum("i j k , ... j, ... k -> ... i", kernel, x, y)
 
 
 @minimum_autocast_precision(torch.float32)

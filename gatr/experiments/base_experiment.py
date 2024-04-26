@@ -571,7 +571,7 @@ class BaseExperiment:
         return data
 
     def _step(self, data, step, val_data, val_loader):
-        """Everything that that may happen per step."""
+        """Everything that may happen per step."""
 
         # Move data to GPU, and other and other data prep stuff
         data = self._prep_data(data)

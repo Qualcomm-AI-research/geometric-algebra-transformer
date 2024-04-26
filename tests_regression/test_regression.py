@@ -2,18 +2,23 @@
 # All rights reserved.
 """A regression test that tests regression."""
 
+
 import pytest
 import torch
+import torch_geometric
+from torch_geometric.data import Batch
 from tqdm import trange
 
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.mlp.config import MLPConfig
 from gatr.nets import GATr
+from gatr.utils.einsum import enable_cached_einsum
 from tests_regression.regression_datasets.constants import BATCHSIZE, DEVICE, NUM_EPOCHS
 from tests_regression.regression_datasets.points_distance import (
     PointsDistanceDataset,
     PointsDistanceWrapper,
 )
+from tests_regression.regression_helpers import XFormersDatasetWrapper, XFormersModelWrapper
 
 
 def gatr_factory(wrapper_class):
@@ -42,27 +47,55 @@ def gatr_factory(wrapper_class):
 @pytest.mark.parametrize(
     "data,wrapper_class", [(PointsDistanceDataset(), PointsDistanceWrapper)], ids=["distance"]
 )
-def test_regression(model_factory, data, wrapper_class, lr=3e-4, target_loss=0.1):
+@pytest.mark.parametrize("xformers", [True, False])
+@pytest.mark.parametrize("torch_compile", [True, False])
+def test_regression(
+    model_factory, data, wrapper_class, xformers, torch_compile, lr=3e-4, target_loss=0.1
+):
     """Test whether model can successfully regress on a dataset data to almost zero train error."""
+    try:
+        model = model_factory(wrapper_class)
+        if xformers:
+            model = XFormersModelWrapper(model)
+            data = XFormersDatasetWrapper(data)
+            dataloader = torch_geometric.data.DataLoader(data, batch_size=BATCHSIZE, shuffle=False)
+        else:
+            dataloader = torch.utils.data.DataLoader(data, batch_size=BATCHSIZE, shuffle=True)
+        optim = torch.optim.Adam(model.parameters(), lr=lr)
+        criterion = torch.nn.MSELoss()
+        model = model.to(DEVICE)
 
-    model = model_factory(wrapper_class)
-    dataloader = torch.utils.data.DataLoader(data, batch_size=BATCHSIZE, shuffle=True)
-    optim = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = torch.nn.MSELoss()
-    model = model.to(DEVICE)
+        if torch_compile:
+            enable_cached_einsum(False)
+            # TODO: Once we can compile without graph breaks (expand_pairwise adapted),
+            # we should compile with `fullgraph=True` in the non-xformer case.
+            model = torch.compile(
+                model,
+                fullgraph=False,
+                dynamic=True,
+            )
 
-    print("Starting training")
-    for _ in (pbar := trange(NUM_EPOCHS)):
-        epoch_loss = 0.0
-        for x, y in dataloader:
-            x, y = x.to(DEVICE), y.to(DEVICE)
-            y_pred = model(x)
-            loss = criterion(y_pred, y)
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
-            epoch_loss += loss.item() / len(dataloader)
-            pbar.set_description(desc=f"Loss = {loss.item():.3f}", refresh=True)
+        print("Starting training")
+        for _ in (pbar := trange(NUM_EPOCHS)):
+            epoch_loss = 0.0
+            for batch in dataloader:
+                if isinstance(batch, Batch):
+                    batch.to(DEVICE)
+                    x = batch
+                    y = batch.y
+                else:
+                    x, y = batch
+                    x, y = x.to(DEVICE), y.to(DEVICE)
+                y_pred = model(x)
+                loss = criterion(y_pred, y)
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
+                epoch_loss += loss.item() / len(dataloader)
+                pbar.set_description(desc=f"Loss = {loss.item():.3f}", refresh=True)
 
-    print(f"Training loss in last epoch: {epoch_loss}")
-    assert epoch_loss < target_loss
+        print(f"Training loss in last epoch: {epoch_loss}")
+        assert epoch_loss < target_loss
+    finally:
+        # Restore to defaults unconditionally
+        enable_cached_einsum(True)

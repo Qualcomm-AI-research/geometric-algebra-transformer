@@ -72,6 +72,7 @@ class ArteryGATrWrapper(BaseWrapper):
         """Construct block-diagonal attention mask."""
         return build_attention_mask(inputs)
 
+    @torch.compiler.disable
     def embed_into_ga(self, inputs):
         """Embeds raw artery data into the geometric algebra.
 

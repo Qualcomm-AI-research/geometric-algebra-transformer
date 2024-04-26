@@ -112,9 +112,7 @@ def compile_equi_linear(equi_linear: EquiLinear) -> CompiledLinear:
     offset_out = out_mv_channels * 16
 
     # Materialize the equivariant maps by linearly combining the basis maps
-    basis = _compute_pin_equi_linear_basis(
-        device=equi_linear.weight.device, dtype=equi_linear.weight.dtype
-    )
+    basis = _compute_pin_equi_linear_basis(equi_linear.weight.device, equi_linear.weight.dtype)
     mv_mv_weight = torch.einsum("y x a, a i j -> y i x j", equi_linear.weight, basis)
     compiled.weight[:offset_out, :offset_in] = mv_mv_weight.reshape(offset_out, offset_in)
 

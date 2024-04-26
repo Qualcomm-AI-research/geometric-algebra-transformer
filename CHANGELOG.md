@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2024-04-18
+
+### Changed
+
+- Experimental support for torch.compile
+
 ## [1.2.2] - 2024-03-13
 
 _Minor cleanup._

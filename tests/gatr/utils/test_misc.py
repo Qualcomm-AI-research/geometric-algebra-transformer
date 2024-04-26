@@ -66,12 +66,14 @@ def test_minimum_autocast_precision_inputs(device, amp_dtype):
         ("high", torch.float64),
     ],
 )
+@pytest.mark.parametrize("compile_code", [False, True])
 def test_minimum_autocast_precision_outputs(
-    output_mode, expected_dtype, device="cpu", amp_dtype=torch.bfloat16
+    output_mode, expected_dtype, compile_code, device="cpu", amp_dtype=torch.bfloat16
 ):
     """Tests that minimum_autocast_precision() casts outputs correctly"""
 
     # We wrap a function that just returns the dtypes of the inputs
+    @torch.compile(disable=not compile_code, fullgraph=True)
     @minimum_autocast_precision(torch.float32, output=output_mode)
     def sum_(*args):
         outputs = 0.0

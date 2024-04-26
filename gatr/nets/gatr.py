@@ -80,9 +80,9 @@ class GATr(nn.Module):
         )
         attention = replace(
             SelfAttentionConfig.cast(attention),  # convert duck typing to actual class
-            additional_qk_mv_channels=0
-            if reinsert_mv_channels is None
-            else len(reinsert_mv_channels),
+            additional_qk_mv_channels=(
+                0 if reinsert_mv_channels is None else len(reinsert_mv_channels)
+            ),
             additional_qk_s_channels=0 if reinsert_s_channels is None else len(reinsert_s_channels),
         )
         mlp = MLPConfig.cast(mlp)

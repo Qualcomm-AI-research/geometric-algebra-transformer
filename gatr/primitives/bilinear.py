@@ -1,22 +1,19 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from functools import lru_cache
 from pathlib import Path
 
 import torch
 
-from gatr.utils.einsum import cached_einsum
+from gatr.utils.einsum import gatr_cache, gatr_einsum
 
 _FILENAMES = {"gp": "geometric_product.pt", "outer": "outer_product.pt"}
 
 
-@lru_cache()
+@gatr_cache
 def _load_bilinear_basis(
     kind: str, device=torch.device("cpu"), dtype=torch.float32
 ) -> torch.Tensor:
     """Loads basis elements for Pin-equivariant bilinear maps between multivectors.
-
-    This function is cached.
 
     Parameters
     ----------
@@ -63,10 +60,10 @@ def geometric_product(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
 
     # Select kernel on correct device
-    gp = _load_bilinear_basis("gp", device=x.device, dtype=x.dtype)
+    gp = _load_bilinear_basis("gp", x.device, x.dtype)
 
     # Compute geometric product
-    outputs = cached_einsum("i j k, ... j, ... k -> ... i", gp, x, y)
+    outputs = gatr_einsum("i j k, ... j, ... k -> ... i", gp, x, y)
 
     return outputs
 
@@ -88,9 +85,9 @@ def outer_product(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
 
     # Select kernel on correct device
-    op = _load_bilinear_basis("outer", device=x.device, dtype=x.dtype)
+    op = _load_bilinear_basis("outer", x.device, x.dtype)
 
     # Compute geometric product
-    outputs = cached_einsum("i j k, ... j, ... k -> ... i", op, x, y)
+    outputs = gatr_einsum("i j k, ... j, ... k -> ... i", op, x, y)
 
     return outputs

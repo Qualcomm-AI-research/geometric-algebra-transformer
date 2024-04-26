@@ -5,8 +5,16 @@ from typing import Iterator, Tuple
 import opt_einsum
 import pytest
 import torch
+from torch.backends import opt_einsum as opt_einsum_torch
 
-from gatr.utils.einsum import cached_einsum
+from gatr.utils import einsum
+from gatr.utils.einsum import (
+    _cached_einsum,
+    _einsum_with_path,
+    _einsum_with_path_ignored,
+    _get_cached_path_for_equation_and_shapes,
+    enable_cached_einsum,
+)
 
 _DIM = 5
 
@@ -14,9 +22,9 @@ _DIM = 5
 @pytest.fixture(autouse=True, scope="module")
 def disable_opt_einsum() -> Iterator[None]:
     """Disable usage of opt_einsum by torch during tests in this module."""
-    torch.backends.opt_einsum.enabled = False
+    opt_einsum_torch.enabled = False
     yield
-    torch.backends.opt_einsum.enabled = True
+    opt_einsum_torch.enabled = True
 
 
 @pytest.fixture(name="einsum_eq")
@@ -55,11 +63,38 @@ def test_opt_einsum_shape() -> None:
 
 
 def test_e2e_cached_path(einsum_eq: str, example_operands: Tuple[torch.Tensor]) -> None:
-    """Checks that torch.einsum and cached_einsum deliver the same values on a non-trivial einsum
-    equation."""
-    expected_result = torch.einsum(einsum_eq, *example_operands)
-    result_with_uncached_path = cached_einsum(einsum_eq, *example_operands)
-    result_with_cached_path = cached_einsum(einsum_eq, *example_operands)
+    """Checks that torch.einsum and cached_einsum deliver the same results."""
+    # pylint: disable=protected-access
+    # WHEN we call cached einsum, remembering the the cache sizes
+    cache_size_unused = _get_cached_path_for_equation_and_shapes.cache_info().currsize
 
+    result_with_uncached_path = _cached_einsum(einsum_eq, *example_operands)
+    cache_size_used_once = _get_cached_path_for_equation_and_shapes.cache_info().currsize
+
+    result_with_cached_path = _cached_einsum(einsum_eq, *example_operands)
+    cache_size_used_twice = _get_cached_path_for_equation_and_shapes.cache_info().currsize
+
+    # WHEN we compute the expected result
+    expected_result = torch.einsum(einsum_eq, *example_operands)
+
+    # THEN the einsum functionality itself works
     torch.testing.assert_close(expected_result, result_with_uncached_path)
     torch.testing.assert_close(expected_result, result_with_cached_path)
+    # THEN the cache was used
+    assert cache_size_unused + 1 == cache_size_used_once == cache_size_used_twice
+
+
+def test_toggle_einsum_caching() -> None:
+    """Verifies that the global switch for gatr_einsum works as expected."""
+    # pylint: disable=comparison-with-callable # Nope, we did not forget the parenthesis.
+    # pylint: disable=protected-access
+    assert einsum._gatr_einsum == _cached_einsum
+    assert einsum._gatr_einsum_with_path == _einsum_with_path
+
+    enable_cached_einsum(False)
+    assert einsum._gatr_einsum == torch.einsum
+    assert einsum._gatr_einsum_with_path == _einsum_with_path_ignored
+
+    enable_cached_einsum(True)
+    assert einsum._gatr_einsum == _cached_einsum
+    assert einsum._gatr_einsum_with_path == _einsum_with_path

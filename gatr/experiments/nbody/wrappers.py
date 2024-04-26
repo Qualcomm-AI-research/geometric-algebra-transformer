@@ -464,9 +464,7 @@ class NBodyGCANWrapper(nn.Module):
     def make_edge_index(inputs):
         """Constructs an edge index for fully connected graph."""
         batchsize, num_items, _ = inputs.shape
-        return make_full_edge_index(
-            num_items, batchsize=batchsize, self_loops=False, device=inputs.device
-        )
+        return make_full_edge_index(num_items, batchsize, False, inputs.device)
 
     def to(self, *args, **kwargs):
         """Send to device.

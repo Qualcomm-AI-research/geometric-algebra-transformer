@@ -1,17 +1,16 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from functools import lru_cache
 
 import torch
 import torch.linalg
 
 from gatr.primitives.bilinear import _load_bilinear_basis
 from gatr.primitives.linear import _compute_reversal, grade_project
-from gatr.utils.einsum import cached_einsum
+from gatr.utils.einsum import gatr_cache
 from gatr.utils.misc import minimum_autocast_precision
 
 
-@lru_cache()
+@gatr_cache
 def compute_inner_product_mask(device=torch.device("cpu")) -> torch.Tensor:
     """Constructs a bool array for the inner product calculation.
 
@@ -33,16 +32,18 @@ def compute_inner_product_mask(device=torch.device("cpu")) -> torch.Tensor:
     ip_mask : torch.Tensor with shape (16,)
         Inner product mask
     """
-    gp = _load_bilinear_basis("gp", device=device, dtype=torch.float32)
-    inner_product_mask = torch.diag(gp[0]) * _compute_reversal(device=device, dtype=torch.float32)
+    gp = _load_bilinear_basis("gp", device, torch.float32)
+    inner_product_mask = torch.diag(gp[0]) * _compute_reversal(device, torch.float32)
     return inner_product_mask.bool()
 
 
-def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -> torch.Tensor:
+INNER_PRODUCT_INDICES = torch.arange(16)[compute_inner_product_mask()]
+
+
+def inner_product(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """Computes the inner product of multivectors f(x,y) = <x, y> = <~x y>_0.
 
-    In addition to summing over the 16 multivector dimensions, this function also sums
-    over an additional channel dimension if channel_sum == True.
+    Sums over the 16 multivector dimensions.
 
     Equal to `geometric_product(reverse(x), y)[..., [0]]` (but faster).
 
@@ -52,8 +53,6 @@ def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -
         First input multivector. Batch dimensions must be broadcastable between x and y.
     y : torch.Tensor with shape (..., 16) or (..., channels, 16)
         Second input multivector. Batch dimensions must be broadcastable between x and y.
-    channel_sum: bool
-        Whether to sum over the second-to-last axis (channels)
 
     Returns
     -------
@@ -61,13 +60,11 @@ def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -
         Result. Batch dimensions are result of broadcasting between x and y.
     """
 
-    x = x[..., compute_inner_product_mask(device=x.device)]
-    y = y[..., compute_inner_product_mask(device=x.device)]
+    selector = INNER_PRODUCT_INDICES.to(x.device)
+    x = x[..., selector]
+    y = y[..., selector]
 
-    if channel_sum:
-        outputs = cached_einsum("... c i, ... c i -> ...", x, y)
-    else:
-        outputs = cached_einsum("... i, ... i -> ...", x, y)
+    outputs = torch.einsum("... i, ... i -> ...", x, y)
 
     # We want the output to have shape (..., 1)
     outputs = outputs.unsqueeze(-1)

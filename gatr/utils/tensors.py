@@ -84,7 +84,7 @@ def construct_reference_multivector(reference: Union[Tensor, str], inputs: Tenso
         mean_dim = tuple(range(1, len(inputs.shape) - 1))
         reference_mv = torch.mean(inputs, dim=mean_dim, keepdim=True)  # (batch, 1, ..., 1, 16)
     elif reference == "canonical":
-        reference_mv = torch.zeros(16).to(inputs.device, inputs.dtype)
+        reference_mv = torch.zeros(16, device=inputs.device, dtype=inputs.dtype)
         reference_mv[..., [14, 15]] = 1.0
     else:
         if not isinstance(reference, Tensor):

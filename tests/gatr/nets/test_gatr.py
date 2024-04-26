@@ -6,6 +6,7 @@ import torch
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.mlp.config import MLPConfig
 from gatr.nets import GATr
+from gatr.utils.misc import models_weights_are_close, seed_all
 from tests.helpers import BATCH_DIMS, MILD_TOLERANCES, check_pin_equivariance
 
 S_CHANNELS = [(None, None, 7, False), (4, 5, 6, True)]
@@ -140,7 +141,7 @@ def test_gatr_state_dict(
     dropout_prob,
     join_reference,
 ):
-    """Tests that the GATr output is invariant under saving and loading its state dict."""
+    """Tests that GATr output is invariant under seeding and saving and loading its state dict."""
 
     # Inputs
     inputs = torch.randn(*batch_dims, num_items, in_mv_channels, 16)
@@ -161,11 +162,27 @@ def test_gatr_state_dict(
         mlp=MLPConfig(),
         dropout_prob=dropout_prob,
     )
+    # Verify network is initialized randomly by default
+    seed_all()
     net = GATr(**gatr_kwargs)
-    net.eval()
 
-    # First forward pass
+    # Verify that initializing a copy will have different weights
+    tmp_net = GATr(**gatr_kwargs)
+    assert not models_weights_are_close(net, tmp_net)
+
+    # Verify that reseeding yields original network
+    seed_all()
+    other_net = GATr(**gatr_kwargs)
+    assert models_weights_are_close(net, other_net)
+
+    # First forward passes
+    net.eval()
     mv1, s1 = net(inputs, scalars=scalars, join_reference=join_reference)
+
+    other_net.eval()
+    mv1_other, s1_other = other_net(inputs, scalars=scalars, join_reference=join_reference)
+    torch.testing.assert_close(mv1, mv1_other)
+    torch.testing.assert_close(s1, s1_other)
 
     # Store state dict
     state_dict = net.state_dict()

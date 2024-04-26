@@ -1,7 +1,6 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
 import math
-from functools import lru_cache
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
@@ -13,7 +12,7 @@ from xformers.ops import AttentionBias, memory_efficient_attention
 
 from gatr.primitives.dual import join_norm
 from gatr.primitives.invariants import inner_product
-from gatr.utils.einsum import cached_einsum
+from gatr.utils.einsum import gatr_cache, gatr_einsum
 from gatr.utils.misc import minimum_autocast_precision
 from gatr.utils.tensors import expand_pairwise, to_nd
 
@@ -193,17 +192,17 @@ def pga_attention(
     attn_weights = attn_weights.softmax(dim=-1)  # Softmax over items_in
 
     # Compute attention output
-    outputs_mv = cached_einsum(
+    outputs_mv = torch.einsum(
         "... j i, ... i c x -> ... j c x", attn_weights, v_mv
     )  # (..., items_out, channels, 16)
-    outputs_s = cached_einsum(
+    outputs_s = torch.einsum(
         "... j i, ... i c -> ... j c", attn_weights, v_s
     )  # (..., items_out, channels)
 
     return outputs_mv, outputs_s
 
 
-@lru_cache()
+@gatr_cache
 def _build_dist_basis(device, dtype) -> Tuple[Tensor, Tensor]:
     """Compute basis features for queries and keys in the geometric SDP attention.
 
@@ -240,7 +239,6 @@ def _build_dist_basis(device, dtype) -> Tuple[Tensor, Tensor]:
     return basis_q, basis_k
 
 
-@minimum_autocast_precision(torch.float32, output="low")
 def _build_dist_vec(tri: Tensor, basis: Tensor, normalizer: Callable[[Tensor], Tensor]) -> Tensor:
     """Build 5D vector whose inner product with another such vector computes the squared distance.
 
@@ -259,10 +257,11 @@ def _build_dist_vec(tri: Tensor, basis: Tensor, normalizer: Callable[[Tensor], T
         Batch of 5D vectors
     """
     tri_normed = tri * normalizer(tri[..., [3]])
-    vec = cached_einsum("xyz,...x,...y->...z", basis, tri_normed, tri_normed)
+    vec = gatr_einsum("xyz,...x,...y->...z", basis, tri_normed, tri_normed)
     return vec
 
 
+@minimum_autocast_precision(torch.float32, output="low")
 def _lin_square_normalizer(v: Tensor, epsilon=0.001) -> Tensor:
     """Apply linear square normalization to the input tensor.
 
@@ -291,7 +290,7 @@ def geometric_attention(
     v_s: Tensor,
     normalizer: Callable[[Tensor], Tensor],
     weights: Optional[Tensor] = None,
-    attn_mask: Optional[Tensor] = None,
+    attn_mask: Optional[Union[AttentionBias, Tensor]] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Equivariant geometric attention based on scaled dot products and nonlinear aux features.
 
@@ -313,7 +312,6 @@ def geometric_attention(
 
     Optionally, the three contributions are weighted with `weights`.
 
-
     Parameters
     ----------
     q_mv : Tensor with shape (..., num_items_out, num_mv_channels_in, 16)
@@ -333,8 +331,10 @@ def geometric_attention(
     weights: Optional[Tensor] with shape (..., 1, num_channels_in)
         Weights for the combination of the inner product, nonlinear distance-aware features, and
         scalar parts.
-    attn_mask: Optional[Tensor] with shape (..., num_items_in, num_items_out)
-        Optional attention mask
+    attn_mask: None or AttentionBias or Tensor with shape (..., num_items_in, num_items_out)
+        Optional attention mask. If provided as a tensor, it should be of either of shape
+        `(num_items_in, num_items_out)`, `(..., 1, num_items_in, num_items_out)`, or
+        `(..., num_heads, num_items_in, num_items_out)`.
 
     Returns
     -------
@@ -350,6 +350,10 @@ def geometric_attention(
     q_s = to_nd(q_s, 4)
     k_s = to_nd(k_s, 4)
     v_s = to_nd(v_s, 4)
+
+    if isinstance(attn_mask, Tensor) and len(attn_mask.shape) > 2:
+        # Attention mask tensors should be reshaped to [-1, heads or 1, q_tokens, k_tokens]
+        attn_mask = attn_mask.view(-1, *attn_mask.shape[-3:])
 
     num_mv_channels_v = v_mv.shape[-2]
     num_s_channels_v = v_s.shape[-1]
@@ -401,10 +405,8 @@ def geometric_attention(
         ],
         -1,
     )
-
     k = k * math.sqrt(num_channels / num_channels_qk)  # Correct for zero padding
-    q, k, v = expand_pairwise(q, k, v, exclude_dims=(-2,))  # Don't expand along token dimension
-    v_out = scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
+    q, k, v_out = _sdpa_graph_breaking(q, k, v, attn_mask=attn_mask)
 
     v_out_mv = rearrange(v_out[..., : num_mv_channels_v * 16], "... (c x) -> ...  c x", x=16)
     v_out_s = v_out[..., num_mv_channels_v * 16 : num_mv_channels_v * 16 + num_s_channels_v]
@@ -413,6 +415,19 @@ def geometric_attention(
     v_out_s = v_out_s.view(*bh_shape, *v_out_s.shape[-2:])
 
     return v_out_mv, v_out_s
+
+
+@torch.compiler.disable
+def _sdpa_graph_breaking(q, k, v, attn_mask):
+    """A helper function to isolate the graph-breaking parts of the attention (cf. decorator).
+
+    TODO: This function can be dissolved once we get expand_pairwise to not break the graph;
+    then we can simply compiler.disable the xformers attention.
+
+    """
+    q, k, v = expand_pairwise(q, k, v, exclude_dims=(-2,))  # Don't expand along token dimension)
+    v_out = scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
+    return q, k, v_out
 
 
 def scaled_dot_product_attention(

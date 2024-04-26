@@ -1,13 +1,16 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
+import random
 from collections.abc import Mapping
-from functools import lru_cache, wraps
+from functools import wraps
 from itertools import chain, product
 from typing import Any, Callable, List, Literal, Optional, Union
 
 import numpy as np
 import torch
 from torch import Tensor
+
+from gatr.utils.einsum import gatr_cache
 
 
 class NaNError(BaseException):
@@ -107,7 +110,7 @@ def sample_log_uniform(min_, max_, size):
     return x
 
 
-@lru_cache()
+@gatr_cache
 @torch.no_grad()
 def make_full_edge_index(num_nodes, batchsize=1, self_loops=False, device=torch.device("cpu")):
     """Creates a PyG-style edge index for a fully connected graph of `num_nodes` nodes."""
@@ -120,7 +123,7 @@ def make_full_edge_index(num_nodes, batchsize=1, self_loops=False, device=torch.
         src.append(i)
         dst.append(j)
 
-    edge_index_per_batch = torch.LongTensor([src, dst]).to(device)
+    edge_index_per_batch = torch.LongTensor([src, dst], device=device)
 
     # Repeat for each batch element
     if batchsize > 1:
@@ -146,6 +149,20 @@ def get_batchsize(data):
         data = data[0]
 
     return len(data)
+
+
+@gatr_cache
+def maximum_dtype(*args):
+    """Return dtype with maximum precision. Cached. Compatible with compilation."""
+    dtype = max(args, key=lambda dt: torch.finfo(dt).bits)
+    return dtype
+
+
+@gatr_cache
+def minimum_dtype(*args):
+    """Return dtype with maximum precision. Compatible with compilation."""
+    dtype = min(args, key=lambda dt: torch.finfo(dt).bits)
+    return dtype
 
 
 def minimum_autocast_precision(
@@ -197,7 +214,7 @@ def minimum_autocast_precision(
             if not var.dtype.is_floating_point:
                 # Integer / boolean tensors are also not touched
                 return var
-            dtype = max(var.dtype, min_dtype, key=lambda dt: torch.finfo(dt).bits)
+            dtype = maximum_dtype(var.dtype, min_dtype)
             return var.to(dtype)
 
         def _cast_out(var: Any, dtype: torch.dtype):
@@ -248,9 +265,9 @@ def minimum_autocast_precision(
                 ]
                 assert len(in_dtypes)
                 if output == "low":
-                    out_dtype = min([min_dtype] + in_dtypes, key=lambda dt: torch.finfo(dt).bits)
+                    out_dtype = minimum_dtype(min_dtype, *in_dtypes)
                 else:
-                    out_dtype = max(in_dtypes, key=lambda dt: torch.finfo(dt).bits)
+                    out_dtype = maximum_dtype(*in_dtypes)
             else:
                 out_dtype = output
 
@@ -262,3 +279,23 @@ def minimum_autocast_precision(
         return decorated_func
 
     return decorator
+
+
+DEFAULT_SEED = 1824
+
+
+def seed_all(seed: int = DEFAULT_SEED) -> None:
+    """Seeds all known sources of pseudo-randomness in our stack."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def models_weights_are_close(model0: torch.nn.Module, model1: torch.nn.Module):
+    """Checks whether models have close weights."""
+    for data0, data1 in zip(model0.state_dict().items(), model1.state_dict().items()):
+        if data0[0] != data1[0]:
+            raise RuntimeError("Models have differing parameter names, cannot compare.")
+        if not torch.equal(data0[1], data1[1]):
+            return False
+    return True
