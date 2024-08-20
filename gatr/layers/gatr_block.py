@@ -1,10 +1,12 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 from dataclasses import replace
-from typing import Optional, Tuple
+from typing import Literal, Optional, Sequence, Tuple, Union
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint as checkpoint_
+from xformers.ops import AttentionBias
 
 from gatr.layers import SelfAttention, SelfAttentionConfig
 from gatr.layers.layer_norm import EquiLayerNorm
@@ -34,6 +36,8 @@ class GATrBlock(nn.Module):
         MLP configuration
     dropout_prob : float or None
         Dropout probability
+    checkpoint : None or sequence of "mlp", "attention"
+        Which components to apply gradient checkpointing to
     """
 
     def __init__(
@@ -43,8 +47,16 @@ class GATrBlock(nn.Module):
         attention: SelfAttentionConfig,
         mlp: MLPConfig,
         dropout_prob: Optional[float] = None,
+        checkpoint: Optional[Sequence[Literal["mlp", "attention"]]] = None,
     ) -> None:
         super().__init__()
+
+        # Gradient checkpointing settings
+        if checkpoint is not None:
+            for key in checkpoint:
+                assert key in ["mlp", "attention"]
+        self._checkpoint_mlp = checkpoint is not None and "mlp" in checkpoint
+        self._checkpoint_attn = checkpoint is not None and "attention" in checkpoint
 
         # Normalization layer (stateless, so we can use the same layer for both normalization
         # instances)
@@ -75,10 +87,10 @@ class GATrBlock(nn.Module):
         self,
         multivectors: torch.Tensor,
         scalars: torch.Tensor,
-        reference_mv=None,
-        additional_qk_features_mv=None,
-        additional_qk_features_s=None,
-        attention_mask=None,
+        reference_mv: Optional[torch.Tensor] = None,
+        additional_qk_features_mv: Optional[torch.Tensor] = None,
+        additional_qk_features_s: Optional[torch.Tensor] = None,
+        attention_mask: Optional[Union[AttentionBias, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the transformer block.
 
@@ -112,10 +124,47 @@ class GATrBlock(nn.Module):
             Output scalars
         """
 
-        # Attention block: layer norm
-        h_mv, h_s = self.norm(multivectors, scalars=scalars)
+        # Attention block
+        attn_kwargs = dict(
+            multivectors=multivectors,
+            scalars=scalars,
+            additional_qk_features_mv=additional_qk_features_mv,
+            additional_qk_features_s=additional_qk_features_s,
+            attention_mask=attention_mask,
+        )
+        if self._checkpoint_attn:
+            h_mv, h_s = checkpoint_(self._attention_block, use_reentrant=False, **attn_kwargs)
+        else:
+            h_mv, h_s = self._attention_block(**attn_kwargs)
 
-        # Attention block: self attention
+        # Skip connection
+        outputs_mv = multivectors + h_mv
+        outputs_s = scalars + h_s
+
+        # MLP block
+        mlp_kwargs = dict(multivectors=outputs_mv, scalars=outputs_s, reference_mv=reference_mv)
+        if self._checkpoint_mlp:
+            h_mv, h_s = checkpoint_(self._mlp_block, use_reentrant=False, **mlp_kwargs)
+        else:
+            h_mv, h_s = self._mlp_block(outputs_mv, scalars=outputs_s, reference_mv=reference_mv)
+
+        # Skip connection
+        outputs_mv = outputs_mv + h_mv
+        outputs_s = outputs_s + h_s
+
+        return outputs_mv, outputs_s
+
+    def _attention_block(
+        self,
+        multivectors: torch.Tensor,
+        scalars: torch.Tensor,
+        additional_qk_features_mv: Optional[torch.Tensor] = None,
+        additional_qk_features_s: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Attention block."""
+
+        h_mv, h_s = self.norm(multivectors, scalars=scalars)
         h_mv, h_s = self.attention(
             h_mv,
             scalars=h_s,
@@ -123,19 +172,16 @@ class GATrBlock(nn.Module):
             additional_qk_features_s=additional_qk_features_s,
             attention_mask=attention_mask,
         )
+        return h_mv, h_s
 
-        # Attention block: skip connection
-        outputs_mv = multivectors + h_mv
-        outputs_s = scalars + h_s
+    def _mlp_block(
+        self,
+        multivectors: torch.Tensor,
+        scalars: torch.Tensor,
+        reference_mv: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """MLP block."""
 
-        # MLP block: layer norm
-        h_mv, h_s = self.norm(outputs_mv, scalars=outputs_s)
-
-        # MLP block: MLP
+        h_mv, h_s = self.norm(multivectors, scalars=scalars)
         h_mv, h_s = self.mlp(h_mv, scalars=h_s, reference_mv=reference_mv)
-
-        # MLP block: skip connection
-        outputs_mv = outputs_mv + h_mv
-        outputs_s = outputs_s + h_s
-
-        return outputs_mv, outputs_s
+        return h_mv, h_s

@@ -1,14 +1,14 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import torch
 
 from gatr.experiments.base_wrapper import BaseWrapper
-from gatr.interface import embed_point, extract_translation
+from gatr.interface import embed_point, extract_oriented_plane
 from tests_regression.regression_datasets.constants import DATASET_SIZE, DEVICE
 
 
 class ConnectPointsDataset(torch.utils.data.Dataset):
-    """Toy dataset that maps two points x, y to the translation vector t = y - x between them."""
+    """Toy dataset that maps two points x, y to the vector t = y - x between them."""
 
     def __init__(self):
         super().__init__()
@@ -103,8 +103,6 @@ class ConnectPointsWrapper(BaseWrapper):
         assert num_channels == 1
         assert num_ga_components == 16
 
-        translation = extract_translation(
-            multivector[:, :, 0, :], divide_by_embedding_dim=False
-        )  # (batchsize, 1, 3)
+        translation = extract_oriented_plane(multivector[:, :, 0, :])  # (batchsize, 1, 3)
 
         return translation, None

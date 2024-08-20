@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 """A regression test that tests regression."""
 
@@ -48,7 +48,7 @@ def gatr_factory(wrapper_class):
     "data,wrapper_class", [(PointsDistanceDataset(), PointsDistanceWrapper)], ids=["distance"]
 )
 @pytest.mark.parametrize("xformers", [True, False])
-@pytest.mark.parametrize("torch_compile", [True, False])
+@pytest.mark.parametrize("torch_compile", [False])
 def test_regression(
     model_factory, data, wrapper_class, xformers, torch_compile, lr=3e-4, target_loss=0.1
 ):

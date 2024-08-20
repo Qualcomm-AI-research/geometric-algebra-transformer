@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0] - 2024-08-01
+
+### Changed
+
+- Equivariance-breaking functions have been replaced with equivariant counterparts, breaking backwards compatibility with `ArteryGATrWrapper` models trained with old GATr versions
+- New argument `checkpoint` in `GATr` constructor for more fine-grained control over checkpointing behaviour
+
+### Added
+
+- Add embeddings for rays in Plücker coordinates
+- Add `nominal_flops_per_token` property to linear layers that counts FLOPs
+
+### Deprecated
+
+- Equivariance-breaking functions now raise warnings
+- Argument `checkpoint_blocks` in `GATr` constructor is deprecated in favour of `checkpoint`
+
+### Fixed
+
+- Fix bug in `compile_equi_linear()` that made autodiff through compiled linear layers incorrect
+
 ## [1.3.0] - 2024-04-18
 
 ### Changed

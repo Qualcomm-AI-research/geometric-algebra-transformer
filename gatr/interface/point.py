@@ -1,9 +1,13 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 """Functions that embed points in the geometric algebra."""
 
 
+import warnings
+
 import torch
+
+from gatr.utils.warning import GATrDeprecationWarning
 
 
 def embed_point(coordinates: torch.Tensor) -> torch.Tensor:
@@ -46,6 +50,10 @@ def extract_point(
 ) -> torch.Tensor:
     """Given a multivector, extract any potential 3D point from the trivector components.
 
+    Nota bene: if the output is interpreted a regular R^3 point,
+    this function is only equivariant if divide_by_embedding_dim=True
+    (or if the e_123 component is guaranteed to equal 1)!
+
     References
     ----------
     Leo Dorst, "A Guided Tour to the Plane-Based Geometric Algebra PGA",
@@ -57,7 +65,8 @@ def extract_point(
         Multivector.
     divide_by_embedding_dim : bool
         Whether to divice by the embedding dim. Proper PGA etiquette would have us do this, but it
-        may not be good for NN training.
+        may not be good for NN training. If set the False, this function is not equivariant for all
+        inputs!
     threshold : float
         Minimum value of the additional, unphysical component. Necessary to avoid exploding values
         or NaNs when this unphysical component of the homogeneous coordinates becomes small.
@@ -67,6 +76,13 @@ def extract_point(
     coordinates : torch.Tensor with shape (..., 3)
         3D coordinates corresponding to the trivector components of the multivector.
     """
+    if not divide_by_embedding_dim:
+        warnings.warn(
+            'Calling "extract_point" with divide_by_embedding_dim=False is deprecated, '
+            "because it is not equivariant.",
+            GATrDeprecationWarning,
+            2,
+        )
 
     coordinates = torch.cat(
         [-multivector[..., [13]], multivector[..., [12]], -multivector[..., [11]]], dim=-1

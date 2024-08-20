@@ -1,11 +1,11 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import torch
 from torch import nn
 from xformers.ops.fmha import BlockDiagonalMask
 
 from gatr.experiments.base_wrapper import BaseWrapper
-from gatr.interface import embed_oriented_plane, embed_point, embed_scalar, extract_translation
+from gatr.interface import embed_oriented_plane, embed_point, embed_scalar, extract_oriented_plane
 
 
 def build_attention_mask(inputs):
@@ -128,7 +128,7 @@ class ArteryGATrWrapper(BaseWrapper):
     def extract_from_ga(self, multivector, scalars):
         """Extracts the predicted wall shear stress from the output multivectors.
 
-        We parameterize the wall shear stress as translation vectors.
+        We parameterize the wall shear stress as translation-invariant vectors.
 
         Parameters
         ----------
@@ -149,6 +149,6 @@ class ArteryGATrWrapper(BaseWrapper):
         assert multivector.shape[2:] == (1, 16)
 
         # Extract wall shear stress
-        wss = extract_translation(multivector[:, :, 0, :])  # (1, objects, 3)
+        wss = extract_oriented_plane(multivector[:, :, 0, :])  # (1, objects, 3)
 
         return wss, None

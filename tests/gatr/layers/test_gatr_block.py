@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 # pylint: disable=redefined-outer-name
 import pytest
@@ -18,7 +18,13 @@ _NUM_S_CHANNELS = 6
 @pytest.fixture
 def block():
     """GATrBlock fixture for testing"""
-    return GATrBlock(_NUM_MV_CHANNELS, _NUM_S_CHANNELS, SelfAttentionConfig(), MLPConfig())
+    return GATrBlock(
+        _NUM_MV_CHANNELS,
+        _NUM_S_CHANNELS,
+        SelfAttentionConfig(),
+        MLPConfig(),
+        checkpoint=["mlp", "attention"],
+    )
 
 
 @pytest.fixture

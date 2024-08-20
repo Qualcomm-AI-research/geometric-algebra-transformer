@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 """Pin-equivariant linear layers between multivector tensors (torch.nn.Modules)."""
 
@@ -118,6 +118,11 @@ class EquiLinear(nn.Module):
 
         # Initialization
         self.reset_parameters(initialization)
+
+        # Count nominal FLOPs
+        self.nominal_flops_per_token = count_nominal_flops_in_equi_linear(
+            in_mv_channels, out_mv_channels, in_s_channels, out_s_channels
+        )
 
     def forward(
         self, multivectors: torch.Tensor, scalars: Optional[torch.Tensor] = None
@@ -353,3 +358,48 @@ class EquiLinear(nn.Module):
                 ]  # pylint:disable=protected-access
             bound = s_factor / np.sqrt(fan_in) if fan_in > 0 else 0
             nn.init.uniform_(self.mvs2s.bias, -bound, bound)
+
+
+_FLOPS_PER_WEIGHT = 6
+_MV_COMPONENTS = 16
+
+
+def count_nominal_flops_in_equi_linear(
+    in_mv_channels: int, out_mv_channels: int, in_s_channels: int, out_s_channels: int
+) -> int:
+    """Computes the nominal FLOPs per token for an EquiLinear layer.
+
+    We assume:
+
+    - the number of tokens are large, so the token-independent contraction of basis maps with
+      weights has a negligible cost
+    - the number of channels is large, so any biases are negligible
+    - any additions are in any case negligible
+    - any reshaping or transposing of the data that happens in the einsum is negligible (this is
+      likely false in our implementation, but is implementation-dependent, so we don't count it)
+
+    Then the dominant contributions come from the (weight) matrices that are multiplied with the
+    scalar and multivector inputs.
+
+    Each such matrix multiplication M_ij x_tj generates 6 FLOPs per element of M and per token in
+    x.
+
+    We verified that (in the appropriate limit) this function is in agreement with the FLOP counted
+    by the deepspeed library.
+
+    References:
+
+    - J. Kaplan et al, "Scaling Laws for Neural Language Models", https://arxiv.org/abs/2001.08361
+    - https://medium.com/@dzmitrybahdanau/the-flops-calculus-of-language-model-training-3b19c1f025e4
+    - https://www.adamcasson.com/posts/transformer-flops
+    """
+
+    in_s_channels = 0 if in_s_channels is None else in_s_channels
+    out_s_channels = 0 if out_s_channels is None else out_s_channels
+
+    s2s_flops = _FLOPS_PER_WEIGHT * in_s_channels * out_s_channels
+    s2mv_flops = _FLOPS_PER_WEIGHT * in_s_channels * out_mv_channels
+    mv2s_flops = _FLOPS_PER_WEIGHT * in_mv_channels * out_s_channels
+    mv2mv_flops = _FLOPS_PER_WEIGHT * _MV_COMPONENTS**2 * in_mv_channels * out_mv_channels
+
+    return s2s_flops + s2mv_flops + mv2s_flops + mv2mv_flops

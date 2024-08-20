@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 from typing import Optional
 
@@ -162,7 +162,7 @@ def embed_3d_object_two_vec(position: torch.Tensor, orientation: torch.Tensor) -
     Returns
     -------
     multivector : torch.Tensor with shape (..., 4, 16)
-        Embedding into three multivectors.
+        Embedding into four multivectors.
     """
 
     # Check inputs
@@ -191,7 +191,7 @@ def extract_3d_object_two_vec(multivector: torch.Tensor) -> torch.Tensor:
 
     Parameters
     ----------
-    multivector : torch.Tensor with shape (..., 3, 16)
+    multivector : torch.Tensor with shape (..., 4, 16)
         Object embedding.
 
     Returns

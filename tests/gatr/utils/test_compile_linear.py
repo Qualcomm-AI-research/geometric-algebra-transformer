@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 from copy import deepcopy
 
@@ -64,3 +64,17 @@ def test_compilation_substitution():
 
     torch.testing.assert_close(out_mv_org, out_mv_compiled)
     torch.testing.assert_close(out_s_org, out_s_compiled)
+
+
+def test_compiled_linear_backward():
+    """Test we can properly run a backwards pass."""
+    mlp = GeoMLP(MLPConfig(mv_channels=[3, 12, 4], s_channels=[2, 12, 5]))
+    compile_equi_linear_submodules(mlp)
+
+    for _ in range(3):
+        in_mv = torch.randn(2, 4, 3, 16).requires_grad_()
+        in_s = torch.randn(2, 4, 2)
+        reference_mv = torch.ones(16)
+
+        out_mv, _ = mlp(in_mv, in_s, reference_mv=reference_mv)
+        out_mv.sum().backward()

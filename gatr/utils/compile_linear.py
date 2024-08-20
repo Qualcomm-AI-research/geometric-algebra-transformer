@@ -114,22 +114,24 @@ def compile_equi_linear(equi_linear: EquiLinear) -> CompiledLinear:
     # Materialize the equivariant maps by linearly combining the basis maps
     basis = _compute_pin_equi_linear_basis(equi_linear.weight.device, equi_linear.weight.dtype)
     mv_mv_weight = torch.einsum("y x a, a i j -> y i x j", equi_linear.weight, basis)
-    compiled.weight[:offset_out, :offset_in] = mv_mv_weight.reshape(offset_out, offset_in)
+    compiled.weight.data[:offset_out, :offset_in] = mv_mv_weight.reshape(offset_out, offset_in)
+    # We need to modify .data directly for the compiled linear maps to still be autograd-compatible
+    # (in the sense of differentiating wrt their inputs, not wrt the linear parameters).
 
     if in_s_channels:
-        compiled.weight[:offset_out:16, offset_in:] = equi_linear.s2mvs.weight
+        compiled.weight.data[:offset_out:16, offset_in:] = equi_linear.s2mvs.weight
     if out_s_channels:
-        compiled.weight[offset_out:, :offset_in:16] = equi_linear.mvs2s.weight
+        compiled.weight.data[offset_out:, :offset_in:16] = equi_linear.mvs2s.weight
     if in_s_channels and out_s_channels:
-        compiled.weight[offset_out:, offset_in:] = equi_linear.s2s.weight
+        compiled.weight.data[offset_out:, offset_in:] = equi_linear.s2s.weight
 
     if bias:
         if equi_linear.bias is not None:
-            compiled.bias[:offset_out:16] = equi_linear.bias.flatten()
+            compiled.bias.data[:offset_out:16] = equi_linear.bias.flatten()
         elif equi_linear.s2mvs.bias is not None:
-            compiled.bias[:offset_out:16] = equi_linear.s2mvs.bias
+            compiled.bias.data[:offset_out:16] = equi_linear.s2mvs.bias
         if out_s_channels:
-            compiled.bias[offset_out:] = equi_linear.mvs2s.bias
+            compiled.bias.data[offset_out:] = equi_linear.mvs2s.bias
 
     return compiled
 

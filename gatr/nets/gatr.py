@@ -1,13 +1,14 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 """Equivariant transformer for multivector data."""
 
 from dataclasses import replace
-from typing import Optional, Tuple, Union
+from typing import Literal, Optional, Sequence, Tuple, Union
+from warnings import warn
 
 import torch
 from torch import Tensor, nn
-from torch.utils.checkpoint import checkpoint
+from torch.utils.checkpoint import checkpoint as checkpoint_
 
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.gatr_block import GATrBlock
@@ -50,8 +51,12 @@ class GATr(nn.Module):
         Data for MLPConfig
     num_blocks : int
         Number of transformer blocks.
+    checkpoint_blocks : bool
+        Deprecated option to specify gradient checkpointing. Use `checkpoint=["block"]` instead
     dropout_prob : float or None
         Dropout probability
+    checkpoint : None or sequence of "mlp", "attention", "block"
+        Which components to apply gradient checkpointing to
     """
 
     def __init__(
@@ -69,9 +74,42 @@ class GATr(nn.Module):
         reinsert_s_channels: Optional[Tuple[int]] = None,
         checkpoint_blocks: bool = False,
         dropout_prob: Optional[float] = None,
+        checkpoint: Union[
+            None, Sequence[Literal["block"]], Sequence[Literal["mlp", "attention"]]
+        ] = None,
         **kwargs,
     ) -> None:
         super().__init__()
+
+        # Gradient checkpointing settings
+        if checkpoint_blocks:
+            # The checkpoint_blocks keyword was deprecated in v1.4.0.
+            if checkpoint is not None:
+                raise ValueError(
+                    "Both checkpoint_blocks and checkpoint were specified. Please only use"
+                    "checkpoint."
+                )
+            warn(
+                'The checkpoint_blocks keyword is deprecated since v1.4.0. Use checkpoint=["block"]'
+                "instead.",
+                category=DeprecationWarning,
+            )
+            checkpoint = ["block"]
+        if checkpoint is not None:
+            for key in checkpoint:
+                assert key in ["block", "mlp", "attention"]
+        if checkpoint is not None and "block" in checkpoint:
+            self._checkpoint_blocks = True
+            if "mlp" in checkpoint or "attention" in checkpoint:
+                raise ValueError(
+                    "Checkpointing both on the block level and the MLP / attention"
+                    'level is not sensible. Please use either checkpoint=["block"] or '
+                    f'checkpoint=["attention", "mlp"]. Found checkpoint={checkpoint}.'
+                )
+            checkpoint = None
+        else:
+            self._checkpoint_blocks = False
+
         self.linear_in = EquiLinear(
             in_mv_channels,
             hidden_mv_channels,
@@ -94,6 +132,7 @@ class GATr(nn.Module):
                     attention=attention,
                     mlp=mlp,
                     dropout_prob=dropout_prob,
+                    checkpoint=checkpoint,
                 )
                 for _ in range(num_blocks)
             ]
@@ -106,7 +145,6 @@ class GATr(nn.Module):
         )
         self._reinsert_s_channels = reinsert_s_channels
         self._reinsert_mv_channels = reinsert_mv_channels
-        self._checkpoint_blocks = checkpoint_blocks
 
     def forward(
         self,
@@ -148,7 +186,7 @@ class GATr(nn.Module):
         h_mv, h_s = self.linear_in(multivectors, scalars=scalars)
         for block in self.blocks:
             if self._checkpoint_blocks:
-                h_mv, h_s = checkpoint(
+                h_mv, h_s = checkpoint_(
                     block,
                     h_mv,
                     use_reentrant=False,

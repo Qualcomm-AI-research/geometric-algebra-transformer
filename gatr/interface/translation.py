@@ -1,6 +1,10 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
+import warnings
+
 import torch
+
+from gatr.utils.warning import GATrDeprecationWarning
 
 
 def embed_translation(translation_vector: torch.Tensor) -> torch.Tensor:
@@ -48,7 +52,12 @@ def embed_translation(translation_vector: torch.Tensor) -> torch.Tensor:
 def extract_translation(
     multivector: torch.Tensor, divide_by_embedding_dim=False, threshold: float = 1e-3
 ) -> torch.Tensor:
-    """Given a multivector, extract a 3D translation vector from the bivector components.
+    """DEPRECATED: Given a multivector, extract 3D translation vector from the bivector components.
+
+    Note bene: this function is NOT equivariant, unless the input has no rotational e_{ij}.
+    Hence this function is deprecated and should NOT be used, unless you know what you're doing.
+    If, given a multivector, you want to extract a vector that rotates, but is invariant to
+    translations, use "extract_oriented_plane".
 
     References
     ----------
@@ -71,6 +80,11 @@ def extract_translation(
     translation : torch.Tensor with shape (..., 3)
         3D components of the translation vector.
     """
+    warnings.warn(
+        'The function "extract_translation" is deprecated, because it is not equivariant.',
+        GATrDeprecationWarning,
+        2,
+    )
 
     translation_vector = -2.0 * multivector[..., 5:8]
 

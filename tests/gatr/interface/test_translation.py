@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import pytest
 import torch
@@ -17,6 +17,7 @@ from gatr.interface import (
     extract_translation,
 )
 from gatr.primitives import geometric_product, reverse
+from gatr.utils.warning import GATrDeprecationWarning
 from tests.helpers import BATCH_DIMS, TOLERANCES
 
 
@@ -25,7 +26,8 @@ def test_translation_embedding_consistency(batch_dims):
     """Tests whether translation embeddings into multivectors are cycle consistent."""
     translations = torch.randn(*batch_dims, 3)
     multivectors = embed_translation(translations)
-    translations_reencoded = extract_translation(multivectors)
+    with pytest.warns(GATrDeprecationWarning):  # ensure deprecationwarning raised
+        translations_reencoded = extract_translation(multivectors)
     torch.testing.assert_close(translations, translations_reencoded, **TOLERANCES)
 
 
@@ -80,7 +82,7 @@ def test_translation_on_plane(batch_dims):
     # Compute translation in multivector space with sandwich product
     translated_plane_sandwich = geometric_product(translations_embedding, plane_embedding)
     translated_plane_sandwich = geometric_product(
-        translated_plane_sandwich, inv_translations_embedding
+        translated_plane_sandwich, inv_translations_embedding  # ensure deprecationwarning raised
     )
     translated_normals = extract_oriented_plane(translated_plane_sandwich)
 

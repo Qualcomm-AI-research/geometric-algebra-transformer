@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import torch
 
@@ -29,6 +29,9 @@ def embed_pseudoscalar(pseudoscalars: torch.Tensor) -> torch.Tensor:
 
 def extract_pseudoscalar(multivectors: torch.Tensor) -> torch.Tensor:
     """Extracts pseudoscalar components from multivectors.
+
+    Nota bene: when the output is interpreted as a scalar,
+    this function is only equivariant to SE(3), but not to mirrors.
 
     Parameters
     ----------

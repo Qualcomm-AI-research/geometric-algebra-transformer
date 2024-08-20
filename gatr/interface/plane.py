@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import torch
 from torch import Tensor
@@ -52,6 +52,10 @@ def extract_oriented_plane(multivector: torch.Tensor) -> torch.Tensor:
 
     Currently, this function does *not* extract a support point for the plane (or the distance to
     the origin).
+
+    This is an equivariant function producing a 3-vector that rotates, but is invariant to
+    translation. In fact, this is the only way of extracting such a vector from a multivector
+    with a linear function.
 
     References
     ----------

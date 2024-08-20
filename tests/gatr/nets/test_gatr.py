@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import pytest
 import torch
@@ -21,6 +21,7 @@ S_CHANNELS = [(None, None, 7, False), (4, 5, 6, True)]
 @pytest.mark.parametrize("dropout_prob", [None, 0.0, 0.3])
 @pytest.mark.parametrize("multi_query_attention", [False, True])
 @pytest.mark.parametrize("join_reference", ["data", "canonical"])
+@pytest.mark.parametrize("checkpoint", [None, ["block"], ["mlp", "attention"]])
 def test_gatr_shape(
     batch_dims,
     num_items,
@@ -36,6 +37,7 @@ def test_gatr_shape(
     multi_query_attention,
     dropout_prob,
     join_reference,
+    checkpoint,
 ):
     """Tests the output shape of EquiTransformer."""
     inputs = torch.randn(*batch_dims, num_items, in_mv_channels, 16)
@@ -55,6 +57,7 @@ def test_gatr_shape(
             num_blocks=num_blocks,
             mlp=MLPConfig(),
             dropout_prob=dropout_prob,
+            checkpoint=checkpoint,
         )
     except NotImplementedError:
         # Some features require scalar inputs, and failing without them is fine
@@ -198,3 +201,55 @@ def test_gatr_state_dict(
     # Check equality
     torch.testing.assert_close(mv1, mv2)
     torch.testing.assert_close(s1, s2)
+
+
+def test_gatr_checkpoint_blocks_deprecation_warning():
+    """Tests that the checkpoint_blocks kwarg raises a DeprecationWarning."""
+    with pytest.deprecated_call():
+        GATr(
+            in_mv_channels=1,
+            out_mv_channels=1,
+            hidden_mv_channels=1,
+            in_s_channels=1,
+            out_s_channels=1,
+            hidden_s_channels=1,
+            attention=SelfAttentionConfig(),
+            num_blocks=1,
+            mlp=MLPConfig(),
+            checkpoint_blocks=True,
+        )
+
+
+def test_gatr_checkpoint_blocks_checkpoint():
+    """Tests that specifying both checkpoint and checkpoint_blocks raises a ValueError."""
+    with pytest.raises(ValueError, match="Both checkpoint_blocks and checkpoint were specified"):
+        GATr(
+            in_mv_channels=1,
+            out_mv_channels=1,
+            hidden_mv_channels=1,
+            in_s_channels=1,
+            out_s_channels=1,
+            hidden_s_channels=1,
+            attention=SelfAttentionConfig(),
+            num_blocks=1,
+            mlp=MLPConfig(),
+            checkpoint_blocks=True,
+            checkpoint=["block"],
+        )
+
+
+def test_gatr_checkpoint_block_and_subblocks():
+    """Tests that specifying block and MLP / attention checkpointing raises a ValueError."""
+    with pytest.raises(ValueError, match="Checkpointing both on the block level"):
+        GATr(
+            in_mv_channels=1,
+            out_mv_channels=1,
+            hidden_mv_channels=1,
+            in_s_channels=1,
+            out_s_channels=1,
+            hidden_s_channels=1,
+            attention=SelfAttentionConfig(),
+            num_blocks=1,
+            mlp=MLPConfig(),
+            checkpoint=["block", "mlp", "attention"],
+        )
