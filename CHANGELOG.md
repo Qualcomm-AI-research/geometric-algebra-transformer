@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1] - 2024-08-22
+
+### Fixed
+
+- Replace legacy call to deprecated `torch.LongTensor` with `torch.tensor`
+
 ## [1.4.0] - 2024-08-01
 
 ### Changed

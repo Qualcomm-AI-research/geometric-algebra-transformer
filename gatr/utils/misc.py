@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 import random
 from collections.abc import Mapping
@@ -123,7 +123,7 @@ def make_full_edge_index(num_nodes, batchsize=1, self_loops=False, device=torch.
         src.append(i)
         dst.append(j)
 
-    edge_index_per_batch = torch.LongTensor([src, dst], device=device)
+    edge_index_per_batch = torch.tensor([src, dst], dtype=torch.int64, device=device)
 
     # Repeat for each batch element
     if batchsize > 1:

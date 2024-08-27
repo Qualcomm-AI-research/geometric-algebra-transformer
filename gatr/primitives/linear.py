@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 
 import torch
@@ -112,14 +112,14 @@ NUM_PIN_LINEAR_BASIS_ELEMENTS = len(_compute_pin_equi_linear_basis())
 def equi_linear(x: torch.Tensor, coeffs: torch.Tensor) -> torch.Tensor:
     """Pin-equivariant linear map f(x) = sum_{a,j} coeffs_a W^a_ij x_j.
 
-    The W^a are seven pre-defined basis elements.
+    The W^a are 9 pre-defined basis elements.
 
     Parameters
     ----------
     x : torch.Tensor with shape (..., in_channels, 16)
         Input multivector. Batch dimensions must be broadcastable between x and coeffs.
-    coeffs : torch.Tensor with shape (out_channels, in_channels, 7)
-        Coefficients for the 59 basis elements. Batch dimensions must be broadcastable between x and
+    coeffs : torch.Tensor with shape (out_channels, in_channels, 9)
+        Coefficients for the 9 basis elements. Batch dimensions must be broadcastable between x and
         coeffs.
 
     Returns

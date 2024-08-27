@@ -291,6 +291,7 @@ geometric-algebra-transformer
 |   |   |   plane.py: planes
 |   |   |   point.py: points
 |   |   |   pseudoscalar.py: pseudoscalars
+|   |   |   ray.py: embedding and extraction of rays
 |   |   |   reflection.py: planar reflections
 |   |   |   rotation.py: rotations
 |   |   |   scalar.py: scalars
@@ -321,7 +322,7 @@ geometric-algebra-transformer
 |   |
 |   └───utils: utility functions
 |       |   clifford.py: non-differentiable GA functions based on the clifford library
-|       |   dual_basis.py: helper functions to construct the equivariant join efficiently
+|       |   compile_linear.py: fast inference via compiled linear layers
 |       |   einsum.py: optimized einsum function
 |       |   logger.py: logger
 |       |   misc.py: various utility functions
@@ -329,6 +330,9 @@ geometric-algebra-transformer
 |       |   plotting.py: plotting defaults
 |       |   quaternions.py: quaternion operations
 |       |   tensors.py: various tensor operations
+|       |   warning.py: warnings
+|
+└───img: images
 |
 └───scripts: entrypoints to run experiments
 |   |   artery_experiment.py: artery experiment script
@@ -355,6 +359,7 @@ geometric-algebra-transformer
 |   .dockerignore: Docker configuration
 |   .gitignore: git configuration
 │   .pylintrc: pylint configuration
+│   CHANGELOG.md: changelog
 │   LICENSE: license under which this code may be used
 │   pyproject.toml: project settings
 │   README.md: this README file
@@ -363,7 +368,7 @@ geometric-algebra-transformer
 
 ### Support for `torch.compile`
 
-GATr v1.3 now supports compilation using `torch.compile`. However, be aware that **compilation is
+From v1.3.0 onwards, GATr supports compilation using `torch.compile`. However, be aware that **compilation is
 experimental and may yield errors or warnings based on your hardware, model, data, and torch
 version**, and we will not be able to offer support for compilation errors.
 If you choose to use compilation, start with
