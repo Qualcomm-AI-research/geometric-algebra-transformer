@@ -1,10 +1,16 @@
 # Changelog
 
+## [1.4.2] - 2024-08-27
+
+### Fixed
+
+- Fix bug in `gatr.baselines.transformer` where the `normalized_shape` parameter incorrectly normalized over all dimensions except the first. Thanks to [@spinjo](https://github.com/spinjo) for identifying and providing the fix
+
 ## [1.4.1] - 2024-08-22
 
 ### Fixed
 
-- Replace legacy call to deprecated `torch.LongTensor` with `torch.tensor`
+- Replace legacy call to deprecated `torch.LongTensor` with `torch.tensor`. Thanks to [@Ruibin-Liu](https://github.com/Ruibin-Liu) for providing a fix
 
 ## [1.4.0] - 2024-08-01
 

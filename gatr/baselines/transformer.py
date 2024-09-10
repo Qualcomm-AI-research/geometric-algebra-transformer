@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
 # All rights reserved.
 """Baseline transformer."""
 
@@ -35,7 +35,7 @@ class BaselineLayerNorm(nn.Module):
         outputs : Tensor
             Normalized inputs.
         """
-        return torch.nn.functional.layer_norm(inputs, normalized_shape=inputs.shape[1:])
+        return torch.nn.functional.layer_norm(inputs, normalized_shape=inputs.shape[-1:])
 
 
 class MultiHeadQKVLinear(nn.Module):
