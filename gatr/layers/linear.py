@@ -73,11 +73,11 @@ class EquiLinear(nn.Module):
         super().__init__()
 
         # Check inputs
-        if initialization == "unit_scalar":
-            assert bias, "unit_scalar initialization requires bias"
+        if initialization in ["unit_scalar", "almost_unit_scalar"]:
+            assert bias, "unit_scalar and almost_unit_scalar initialization requires bias"
             if in_s_channels is None:
                 raise NotImplementedError(
-                    "unit_scalar initialization is currently only implemented for scalar inputs"
+                    "unit_scalar and almost_unit_scalar initialization is currently only implemented for scalar inputs"
                 )
 
         self._in_mv_channels = in_mv_channels
@@ -244,24 +244,24 @@ class EquiLinear(nn.Module):
             s_factor = gain * additional_factor * np.sqrt(3)
             mvs_bias_shift = 0.0
         elif initialization == "small":
-            # Change scale by a factor of 0.3 in this layer
+            # Change scale by a factor of 0.1 in this layer
             mv_factor = 0.1 * gain * additional_factor * np.sqrt(3)
             s_factor = 0.1 * gain * additional_factor * np.sqrt(3)
             mvs_bias_shift = 0.0
         elif initialization == "unit_scalar":
-            # Change scale by a factor of 0.3 for MV outputs, and initialize bias around 1
+            # Change scale by a factor of 0.1 for MV outputs, and initialize bias around 1
             mv_factor = 0.1 * gain * additional_factor * np.sqrt(3)
             s_factor = gain * additional_factor * np.sqrt(3)
             mvs_bias_shift = 1.0
         elif initialization == "almost_unit_scalar":
-            # Change scale by a factor of 0.3 for MV outputs, and initialize bias around 1
+            # Change scale by a factor of 0.5 for MV outputs, and initialize bias around 1
             mv_factor = 0.5 * gain * additional_factor * np.sqrt(3)
             s_factor = gain * additional_factor * np.sqrt(3)
             mvs_bias_shift = 1.0
         else:
             raise ValueError(
                 f"Unknown initialization scheme {initialization}, expected"
-                ' "default", "small", or "unit_scalar".'
+                ' "default", "small", "unit_scalar" or "almost_unit_scalar".'
             )
 
         # Individual factors for each multivector component
