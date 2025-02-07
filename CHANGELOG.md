@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.3] - 2025-01-31
+
+### Changed
+
+- Update email address in README.
+
+### Fixed
+
+- Fix handling of the `almost_unit_scalar` initialization. Thanks once more to [@spinjo](https://github.com/spinjo) for identifying and providing the fix
+
+
 ## [1.4.2] - 2024-08-27
 
 ### Fixed

@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Qualcomm Technologies, Inc.
+# Copyright (c) 2025 Qualcomm Technologies, Inc.
 # All rights reserved.
 import pytest
 import torch
@@ -12,7 +12,9 @@ from tests.helpers import BATCH_DIMS, TOLERANCES, check_pin_equivariance
 @pytest.mark.parametrize(
     "in_s_channels, out_s_channels", [(None, None), (None, 100), (100, None), (32, 32)]
 )
-@pytest.mark.parametrize("initialization", ["default", "small", "unit_scalar"])
+@pytest.mark.parametrize(
+    "initialization", ["default", "small", "unit_scalar", "almost_unit_scalar"]
+)
 def test_linear_layer_initialization(
     initialization,
     batch_dims,
@@ -68,6 +70,10 @@ def test_linear_layer_initialization(
         target_mean = torch.zeros_like(mv_mean)
         target_mean[0] = 1.0
         target_var = 0.01 * torch.ones_like(mv_var) / 3.0
+    elif initialization == "almost_unit_scalar":
+        target_mean = torch.zeros_like(mv_mean)
+        target_mean[0] = 1.0
+        target_var = 0.25 * torch.ones_like(mv_var) / 3.0
     else:
         raise ValueError(initialization)
 
@@ -83,7 +89,7 @@ def test_linear_layer_initialization(
 
         print(f"Output scalar: mean = {s_mean:.2f}, std = {s_var**0.5:.2f}")
         assert -0.3 < s_mean < 0.3
-        if initialization in {"default", "unit_scalar"}:
+        if initialization in {"default", "unit_scalar", "almost_unit_scalar"}:
             assert 1.0 / 3.0 / var_tolerance < s_var < 1.0 / 3.0 * var_tolerance
         else:
             assert 0.01 / 3.0 / var_tolerance < s_var < 0.01 / 3.0 * var_tolerance
