@@ -409,3 +409,94 @@ If you find our code useful, please cite:
   url = {https://arxiv.org/abs/2311.04744},
 }
 ```
+
+## Run on Mac (RAPH)
+
+Now build the Docker image with:
+```
+docker build -f docker/Dockerfile.mac --tag gatr:mac .
+```
+
+And run it with:
+```
+docker run --rm -it -v $PWD:$PWD -w $PWD gatr:mac /bin/bash
+```
+
+Inside the container, you can run the simplified n-body dataset generator:
+```
+# Make the script executable
+chmod +x scripts/generate_nbody_dataset_mac.py
+export BASEDIR=/tmp/gatr-experiments
+mkdir -p $BASEDIR
+
+# Run the dataset generator
+python nbody_mac_standalone.py --data_dir="/tmp/gatr-experiments-conda/data/nbody" --seed=42
+```
+
+After generating the dataset, you can run the test script:
+```
+python test_gatr.py
+```
+
+This approach:
+Uses a slim Python image instead of CUDA
+Removes GPU-specific dependencies
+Simplifies the requirements to work on ARM64 architecture
+Avoids the problematic PyG libraries
+Note that without GPU acceleration, training will be much slower, but the code should run correctly for experimentation and development purposes.
+
+Note that test_gatr.py and scripts/generate_nbody_dataset_mac.py are added by me (Raphael).
+
+# To run local:
+
+(I have created these:
+```
+mkdir -p xformers_stub/xformers/ops
+touch xformers_stub/xformers/__init__.py
+touch xformers_stub/xformers/ops/__init__.py
+```
+and then:
+```
+xformers_stub/setup.py 
+test_gatr_conda.py
+```
+)
+
+##  Install basic dependencies
+```
+pip install numpy==1.23.0 einops torch torchvision hydra-core mlflow torch-ema
+pip install "opt_einsum @ git+https://github.com/dgasmith/opt_einsum.git@1a984b7b75f3e532e7129f6aa13f7ddc3da66e10"
+pip install git+https://github.com/microsoft/cliffordlayers.git@74799cf4588a065916305bfcf2f030d84918f0ad
+
+# Install GATr without dependencies
+pip install --no-deps git+https://github.com/Qualcomm-AI-research/geometric-algebra-transformer.git
+
+
+pip install -e xformers_stub
+```
+
+
+And then run:
+
+```
+export BASEDIR=/tmp/gatr-experiments-conda
+mkdir -p $BASEDIR
+python scripts/generate_nbody_dataset_mac.py base_dir="${BASEDIR}" seed=42
+```
+
+
+
+# Summary of files added (Raphael)
+
+gatr/utils/xformers_stub.py
+This is a stub module that provides mock implementations of xformers functionality
+It's placed within the gatr package structure so it can be imported by other gatr modules
+Contains minimal implementations of AttentionBias and memory_efficient_attention to replace the CUDA-dependent xformers library
+gatr_xformers_stub/
+A directory containing an alternative approach to creating xformers stubs
+Includes the necessary package structure to be installed as a separate package
+Contains similar mock implementations as the file above
+xformers_stub/
+Another approach to creating xformers stubs as a standalone package
+Includes a setup.py file to make it installable with pip
+This is the recommended approach for a clean installation
