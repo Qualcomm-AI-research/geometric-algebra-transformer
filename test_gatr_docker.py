@@ -1,5 +1,3 @@
-""" A small example script that runs."""
-
 #!/usr/bin/env python3
 
 import os
@@ -39,4 +37,4 @@ print("Input shape:", points.shape)
 print("Output shape:", final_output.shape)
 print("Output:", final_output)
 
-print("GATr is working in conda environment!")
+print("GATr is working on macOS!")

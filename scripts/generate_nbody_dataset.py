@@ -3,6 +3,40 @@
 # All rights reserved.
 
 from pathlib import Path
+import os
+import sys
+
+# Create xformers stub for Mac compatibility
+if sys.platform == "darwin":  # Check if running on Mac
+    import sys
+    
+    # Define stub classes/functions
+    class AttentionBias:
+        pass
+        
+    def memory_efficient_attention(*args, **kwargs):
+        import torch
+        import torch.nn.functional as F
+        q, k, v = args[:3]
+        # Fall back to standard PyTorch attention
+        scores = torch.matmul(q, k.transpose(-2, -1)) / (q.size(-1) ** 0.5)
+        attn = F.softmax(scores, dim=-1)
+        return torch.matmul(attn, v)
+    
+    # Create module structure
+    class XformersOps:
+        AttentionBias = AttentionBias
+        memory_efficient_attention = memory_efficient_attention
+    
+    class XformersModule:
+        ops = XformersOps()
+    
+    # Insert into sys.modules
+    sys.modules['xformers'] = XformersModule()
+    sys.modules['xformers.ops'] = XformersModule.ops
+    
+    # Set environment variable
+    os.environ["XFORMERS_DISABLED"] = "1"
 
 import hydra
 import numpy as np
