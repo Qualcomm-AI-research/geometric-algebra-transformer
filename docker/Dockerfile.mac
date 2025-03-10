@@ -1,0 +1,26 @@
+FROM python:3.9-slim
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY docker/requirements.mac.txt requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --upgrade -r requirements.txt
+
+# Install the package
+COPY . /app/
+WORKDIR /app
+RUN pip install -e .
+
+# Set environment variables
+ENV PYTHONPATH=/app
+
+# Default command
+CMD ["/bin/bash"] 
